@@ -27,11 +27,23 @@ class TsType:
         pass
 
     @abstractmethod
+    def combined_with(self, other: 'TsType') -> 'CombinedType':
+        pass
+
+    @abstractmethod
     def combine_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
         pass
 
     @abstractmethod
+    def combined_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
+        pass
+
+    @abstractmethod
     def combine_with_combined(self, other: 'CombinedType') -> 'CombinedType':
+        pass
+
+    @abstractmethod
+    def combined_with_combined(self, other: 'CombinedType') -> 'CombinedType':
         pass
 
     @abstractmethod
@@ -58,8 +70,16 @@ class TsType:
             name = 'Function'
         if name == 'int':
             name = 'number'
+        if name == 'float':
+            name = 'number'
+        if name == 'double':
+            name = 'number'
+        if name == 'real':
+            name = 'number'
         if name == 'array':
             name = 'any[]'
+        if name == 'map':
+            name = 'any'
         return name
 
 
@@ -70,12 +90,21 @@ class TypeLiteral(TsType):
         self.name = name
 
     def combine_with(self, other: 'TsType') -> 'CombinedType':
+        return other.combined_with_literal(self)
+
+    def combined_with(self, other: 'TsType') -> 'CombinedType':
         return other.combine_with_literal(self)
 
     def combine_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
         return CombinedType([self, other])
 
+    def combined_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
+        return CombinedType([other, self])
+
     def combine_with_combined(self, other: 'CombinedType') -> 'CombinedType':
+        return other.combined_with_literal(self)
+
+    def combined_with_combined(self, other: 'CombinedType') -> 'CombinedType':
         return other.combine_with_literal(self)
 
     def written(self) -> str:
@@ -89,13 +118,22 @@ class CombinedType(TsType):
         self.options = options or []
 
     def combine_with(self, other: 'TsType') -> 'CombinedType':
+        return other.combined_with_combined(self)
+
+    def combined_with(self, other: 'TsType') -> 'CombinedType':
         return other.combine_with_combined(self)
 
     def combine_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
         return CombinedType([*self.options, other])
 
+    def combined_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
+        return CombinedType([other, *self.options])
+
     def combine_with_combined(self, other: 'CombinedType') -> 'CombinedType':
         return CombinedType([*self.options, *other.options])
+
+    def combined_with_combined(self, other: 'CombinedType') -> 'CombinedType':
+        return CombinedType([*other.options, *self.options])
 
     def written(self) -> str:
         return '(' + " | ".join([o.written() for o in self.options]) + ")"
@@ -129,7 +167,7 @@ class Parameter:
 
     def merge(self, other: 'Parameter'):
         self.name = self.name + 'Or' + capitalize_first(other.name)
-        # TODO type merging also!
+        self.type = self.type.combine_with(other.type)
 
 
 class Method:
@@ -271,17 +309,29 @@ class Enum:
         f.write(indent + '}\n')
 
 
+class Typedef:
+    name: str
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def write(self, f: 'TextIO', indent: str):
+        f.write(indent + 'type ' + pp(self.name) + ' = any\n')
+
+
 class Namespace:
     name: str
     namespaces: Dict[str, 'Namespace']
     classes: Dict[str, Class]
     enums: Dict[str, Enum]
+    typedefs: Dict[str, Typedef]
 
     def __init__(self, name: str):
         self.name = name
         self.namespaces = {}
         self.classes = {}
         self.enums = {}
+        self.typedefs = {}
 
     def resolve_namespace(self, uri: str) -> 'Namespace':
         if '.' in uri:
@@ -319,10 +369,24 @@ class Namespace:
             self.enums[name] = Enum(name)
         return self.enums[name]
 
+    def resolve_typedef(self, uri) -> Typedef:
+        if '.' in uri:
+            [name, rest] = uri.split('.', 1)
+            return self.resolve_single_namespace(name).resolve_typedef(rest)
+        else:
+            return self.resolve_single_typedef(uri)
+
+    def resolve_single_typedef(self, name) -> Typedef:
+        if name not in self.typedefs:
+            self.typedefs[name] = Typedef(name)
+        return self.typedefs[name]
+
     def write(self, f: 'TextIO', indent: str):
         if len(self.name) == 0:
             return
         f.write(indent + "namespace " + pp(self.name) + " {\n")
+        for name, typedef in self.typedefs.items():
+            typedef.write(f, indent + INDENT)
         for key in sorted(self.namespaces):
             self.namespaces[key].write(f, indent + INDENT)
         for key in sorted(self.enums):
@@ -358,6 +422,8 @@ class Declaration:
                 self.root_ns.resolve_enum(name).load(json_symbol)
             elif kind == 'interface':
                 self.root_ns.resolve_class(name).as_interface().load(json_symbol)
+            elif kind == 'typedef':
+                self.root_ns.resolve_typedef(name)
             else:
                 print('unknown kind: ' + kind)
 
