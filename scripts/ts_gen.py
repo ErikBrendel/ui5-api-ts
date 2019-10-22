@@ -1,4 +1,5 @@
 # https://www.typescriptlang.org/docs/handbook/declaration-files/introduction.html
+from abc import abstractmethod
 from typing import *
 import json
 import os
@@ -20,12 +21,91 @@ def capitalize_first(data: str) -> str:
     return data[0].capitalize() + data[1:]
 
 
+class TsType:
+    @abstractmethod
+    def combine_with(self, other: 'TsType') -> 'CombinedType':
+        pass
+
+    @abstractmethod
+    def combine_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
+        pass
+
+    @abstractmethod
+    def combine_with_combined(self, other: 'CombinedType') -> 'CombinedType':
+        pass
+
+    @abstractmethod
+    def written(self) -> str:
+        pass
+    
+    @staticmethod
+    def parse(json_types: List) -> 'TsType':
+        if len(json_types) == 1:
+            return TypeLiteral(TsType.parse_type_name(json_types[0]))
+        else:
+            return CombinedType([TypeLiteral(TsType.parse_type_name(t)) for t in json_types])
+
+    @staticmethod
+    def parse_type_name(json_type):
+        name = ''
+        if 'name' in json_type:
+            name = json_type['name']
+        elif 'value' in json_type:
+            name = json_type['value']
+        else:
+            raise Exception("cannot get type name!")
+        if name == 'function':
+            name = 'Function'
+        if name == 'int':
+            name = 'number'
+        return name
+
+
+class TypeLiteral(TsType):
+    name: str
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def combine_with(self, other: 'TsType') -> 'CombinedType':
+        return other.combine_with_literal(self)
+
+    def combine_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
+        return CombinedType([self, other])
+
+    def combine_with_combined(self, other: 'CombinedType') -> 'CombinedType':
+        return other.combine_with_literal(self)
+
+    def written(self) -> str:
+        return self.name
+
+
+class CombinedType(TsType):
+    options: List[TsType]
+
+    def __init__(self, options):
+        self.options = options or []
+
+    def combine_with(self, other: 'TsType') -> 'CombinedType':
+        return other.combine_with_combined(self)
+
+    def combine_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
+        return CombinedType([*self.options, other])
+
+    def combine_with_combined(self, other: 'CombinedType') -> 'CombinedType':
+        return CombinedType([*self.options, *other.options])
+
+    def written(self) -> str:
+        return '(' + " | ".join([o.written() for o in self.options]) + ")"
+
+
 class Parameter:
     name: str
     description: str
     types: any
     optional: bool
     depth: int
+    type: Optional[TsType]
 
     def __init__(self, json_parameter: json):
         self.name = json_parameter['name']
@@ -33,13 +113,17 @@ class Parameter:
         self.types = json_parameter.get('types')
         self.optional = json_parameter.get('optional', False)
         self.depth = json_parameter.get('depth', 0)
+        self.type = None
+        if 'types' in json_parameter:
+            self.type = TsType.parse(json_parameter['types'])
 
-    def written(self):
+    def written(self) -> str:
         name = pp(self.name)
         if self.optional:
-            return name + "?"
-        else:
-            return name
+            name += "?"
+        if self.type is not None:
+            name += ": " + self.type.written()
+        return name
 
     def merge(self, other: 'Parameter'):
         self.name = self.name + 'Or' + capitalize_first(other.name)
@@ -51,7 +135,7 @@ class Method:
     description: str
     visibility: str
     parameters: List[Parameter]
-    type: str
+    returnType: TsType
 
     def __init__(self, json_method: json):
         self.name = json_method.get('name')
@@ -180,7 +264,6 @@ class Namespace:
         if name not in self.classes:
             self.classes[name] = Class(name)
         return self.classes[name]
-
 
     def write(self, f: 'TextIO', indent: str):
         if len(self.name) == 0:
