@@ -175,24 +175,30 @@ class Method:
     description: str
     visibility: str
     parameters: List[Parameter]
-    returnType: TsType
+    return_type: Optional[TsType]
 
     def __init__(self, json_method: json):
         self.name = json_method.get('name')
         self.visibility = json_method.get('visibility')
         self.description = json_method.get('description')
         self.parameters = []
+        self.return_type = None
         for json_parameter in json_method.get('parameters', []):
             p = Parameter(json_parameter)
             if p.depth == 0:
                 self.parameters.append(p)
+        if 'returnValue' in json_method and 'types' in json_method['returnValue']:
+            self.return_type = TsType.parse(json_method['returnValue']['types'])
 
     def write(self, f: 'TextIO', indent: str):
         if len(self.name) == 0:
             return
         f.write(indent + pp(self.name) + "(")
         f.write(", ".join([param.written() for param in self.parameters]))
-        f.write(");\n")
+        f.write(")")
+        if self.return_type is not None:
+            f.write(": " + self.return_type.written())
+        f.write(";\n")
 
     def clean_up(self):
         self.shift_optional_parameters()
