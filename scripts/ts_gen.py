@@ -58,6 +58,8 @@ class TsType:
             name = 'Function'
         if name == 'int':
             name = 'number'
+        if name == 'array':
+            name = 'any[]'
         return name
 
 
@@ -231,15 +233,42 @@ class Class:
             method.clean_up()
 
 
+class Enum:
+    name: str
+    options: List[str]
+
+    def __init__(self, name):
+        self.name = name
+
+    def load(self, json_enum):
+        options = []
+        if 'nodes' in json_enum:
+            options = json_enum['nodes']
+        if 'properties' in json_enum:
+            options = json_enum['properties']
+        long_name_length = len(json_enum['name']) + 1
+        self.options = [o['name'][long_name_length:] for o in options]
+
+    def clean_up(self):
+        pass
+
+    def write(self, f: 'TextIO', indent: str):
+        f.write(indent + 'enum ' + pp(self.name) + ' {\n')
+        for option in self.options:
+            f.write(indent + INDENT + option + ",\n")
+        f.write(indent + '}\n')
+
 class Namespace:
     name: str
     namespaces: Dict[str, 'Namespace']
     classes: Dict[str, Class]
+    enums: Dict[str, Enum]
 
     def __init__(self, name: str):
         self.name = name
         self.namespaces = {}
         self.classes = {}
+        self.enums = {}
 
     def resolve_namespace(self, uri: str) -> 'Namespace':
         if '.' in uri:
@@ -265,12 +294,26 @@ class Namespace:
             self.classes[name] = Class(name)
         return self.classes[name]
 
+    def resolve_enum(self, uri) -> Enum:
+        if '.' in uri:
+            [name, rest] = uri.split('.', 1)
+            return self.resolve_single_namespace(name).resolve_enum(rest)
+        else:
+            return self.resolve_single_enum(uri)
+
+    def resolve_single_enum(self, name) -> Enum:
+        if name not in self.enums:
+            self.enums[name] = Enum(name)
+        return self.enums[name]
+
     def write(self, f: 'TextIO', indent: str):
         if len(self.name) == 0:
             return
         f.write(indent + "namespace " + pp(self.name) + " {\n")
         for key in sorted(self.namespaces):
             self.namespaces[key].write(f, indent + INDENT)
+        for key in sorted(self.enums):
+            self.enums[key].write(f, indent + INDENT)
         for key in sorted(self.classes):
             self.classes[key].write(f, indent + INDENT)
         f.write(indent + "}\n")
@@ -281,6 +324,8 @@ class Namespace:
                 self.namespaces.pop(name)
         for name, ns in self.namespaces.items():
             ns.clean_up()
+        for name, enum in self.enums.items():
+            enum.clean_up()
         for name, clazz in self.classes.items():
             clazz.clean_up()
 
@@ -288,20 +333,16 @@ class Namespace:
 class Declaration:
     root_ns: Namespace = Namespace("root")
 
-    def resolve_namespace(self, uri: str) -> Namespace:
-        return self.root_ns.resolve_namespace(uri)
-
-    def resolve_class(self, uri: str) -> Class:
-        return self.root_ns.resolve_class(uri)
-
     def load(self, json_data: json):
         for json_symbol in json_data['symbols']:
             kind = json_symbol['kind']
             name = json_symbol['name']
             if kind == 'namespace':
-                self.resolve_namespace(name)
+                self.root_ns.resolve_namespace(name)
             elif kind == 'class':
-                self.resolve_class(name).load(json_symbol)
+                self.root_ns.resolve_class(name).load(json_symbol)
+            elif kind == 'enum':
+                self.root_ns.resolve_enum(name).load(json_symbol)
             else:
                 print('unknown kind: ' + kind)
 
