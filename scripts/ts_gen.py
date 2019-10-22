@@ -37,7 +37,7 @@ class TsType:
     @abstractmethod
     def written(self) -> str:
         pass
-    
+
     @staticmethod
     def parse(json_types: List) -> 'TsType':
         if len(json_types) == 1:
@@ -202,11 +202,17 @@ class Class:
     name: str
     methods: Dict[str, Method]
     constructor: Method
+    is_interface: bool
 
     def __init__(self, name: str):
         self.name = name
         self.methods = {}
         self.constructor = None
+        self.is_interface = False
+
+    def as_interface(self) -> 'Class':
+        self.is_interface = True
+        return self
 
     def load(self, json_symbol: json):
         for json_method in json_symbol.get('methods', []):
@@ -219,12 +225,18 @@ class Class:
     def write(self, f: 'TextIO', indent: str):
         if len(self.name) == 0:
             return
-        f.write(indent + "class " + pp(self.name) + " {\n")
+        f.write(indent + self.ns_word() + " " + pp(self.name) + " {\n")
         if self.constructor is not None:
             self.constructor.write(f, indent + INDENT)
         for key in sorted(self.methods):
             self.methods[key].write(f, indent + INDENT)
         f.write(indent + "}\n")
+
+    def ns_word(self):
+        if self.is_interface:
+            return "interface"
+        else:
+            return "class"
 
     def clean_up(self):
         if self.constructor is not None:
@@ -257,6 +269,7 @@ class Enum:
         for option in self.options:
             f.write(indent + INDENT + option + ",\n")
         f.write(indent + '}\n')
+
 
 class Namespace:
     name: str
@@ -343,6 +356,8 @@ class Declaration:
                 self.root_ns.resolve_class(name).load(json_symbol)
             elif kind == 'enum':
                 self.root_ns.resolve_enum(name).load(json_symbol)
+            elif kind == 'interface':
+                self.root_ns.resolve_class(name).as_interface().load(json_symbol)
             else:
                 print('unknown kind: ' + kind)
 
