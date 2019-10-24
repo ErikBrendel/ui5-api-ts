@@ -1,8 +1,9 @@
 # UI5 API in your IDE!
 
-This projects queries the official UI5 api and creates TypeScript declarations based on that, so that you IDE can support you writing UI5 JS code.
+This projects queries the official UI5 API and creates TypeScript declarations based on that, so that you IDE can support you writing UI5 JS code.
 
 ### SetUp:
+ - clone this repository somewhere to your machine (e.g. `C:\PortableIDE\ui5ApiTs`)
  - make sure to have python3 installed (you can download it [here](https://www.python.org/ftp/python/3.8.0/python-3.8.0-amd64.exe))
  - open up a command prompt and run `pip install requests requests_cache bs4`
  - go to the `scripts` folder of this repository
