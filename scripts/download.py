@@ -1,10 +1,5 @@
 import requests
 import requests_cache
-import json
-from urllib.request import urlopen
-import re
-import sys
-import os
 
 requests_cache.install_cache()
 
