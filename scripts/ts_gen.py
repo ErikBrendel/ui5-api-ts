@@ -14,6 +14,11 @@ BeautifulSoup.prettify = prettify
 
 
 INDENT = '    '
+FILE_HEADER = "/**\n" \
+              " * Auto generated UI5 declarations by Erik Brendel - do not modify\n" \
+              " * It can be re-generated from the latest UI5 api docs\n" \
+              " */\n\n\n" \
+              "declare "
 forbidden_words = ['export', 'with', 'as']
 forbidden_chars = [' ', '.', ':', '/', '-', '<', '>', '{', '}', '[', ']']
 
@@ -225,9 +230,8 @@ class Method:
 
     def __init__(self, json_method: json):
         self.name = json_method.get('name')
-        self.description = json_method.get('Description')
-        self.visibility = json_method.get('visibility')
         self.description = json_method.get('description')
+        self.visibility = json_method.get('visibility')
         self.parameters = []
         self.return_type = None
         for json_parameter in json_method.get('parameters', []):
@@ -240,6 +244,8 @@ class Method:
     def write(self, f: 'TextIO', indent: str):
         if len(self.name) == 0:
             return
+        if self.description is not None:
+            Comment(self.description).write(f, indent)
         f.write(indent + pp(self.name) + "(")
         f.write(", ".join([param.written() for param in self.parameters]))
         f.write(")")
@@ -450,19 +456,22 @@ class Namespace:
             self.typedefs[name] = Typedef(name)
         return self.typedefs[name]
 
-    def write(self, f: 'TextIO', indent: str):
+    def write(self, indent: str, name: str):
         if len(self.name) == 0:
             return
-        f.write(indent + "namespace " + pp(self.name) + " {\n")
-        for name, typedef in self.typedefs.items():
-            typedef.write(f, indent + INDENT)
+        my_name = (name + "." if len(name) > 0 else '') + pp(self.name)
+        with open('../ts/' + my_name + '.d.ts', 'w', encoding="utf8") as f:
+            f.write(FILE_HEADER)
+            f.write(indent + "namespace " + my_name + " {\n")
+            for name, typedef in self.typedefs.items():
+                typedef.write(f, indent + INDENT)
+            for key in sorted(self.enums):
+                self.enums[key].write(f, indent + INDENT)
+            for key in sorted(self.classes):
+                self.classes[key].write(f, indent + INDENT)
+            f.write(indent + "}\n")
         for key in sorted(self.namespaces):
-            self.namespaces[key].write(f, indent + INDENT)
-        for key in sorted(self.enums):
-            self.enums[key].write(f, indent + INDENT)
-        for key in sorted(self.classes):
-            self.classes[key].write(f, indent + INDENT)
-        f.write(indent + "}\n")
+            self.namespaces[key].write(indent, my_name)
 
     def clean_up(self):
         for name in list(self.namespaces.keys()):
@@ -497,14 +506,8 @@ class Declaration:
                 print('unknown kind: ' + kind)
 
     def save_to(self, directory: str):
-        with open(directory + 'ui5.d.ts', 'w', encoding="utf8") as f:
-            f.write("/**\n"
-                    " * Auto generated UI5 declarations by Erik Brendel - do not modify\n"
-                    " * It can be re-generated from the latest UI5 api docs\n"
-                    " */\n\n\n")
-            for key in sorted(self.root_ns.namespaces):
-                f.write('declare ')
-                self.root_ns.namespaces[key].write(f, '')
+        for key in sorted(self.root_ns.namespaces):
+            self.root_ns.namespaces[key].write('', '')
 
     def clean_up(self):
         self.root_ns.clean_up()
@@ -517,8 +520,11 @@ if __name__ == "__main__":
             if '.json' in file and not 'api-index' in file:
                 with open(os.path.join(root, file), encoding="utf8") as f:
                     decl.load(json.load(f))
-    print("Done loading, now cleaning up...")
+    print("Done loading!")
+    print("Now cleaning up... ", end="", flush=True)
     decl.clean_up()
-    print("Done cleaning up, now writing...")
+    print("Done!")
+    print("Now writing...", end="", flush=True)
     decl.save_to("../ts/")
-    print("All done!")
+    print("Done!")
+    print("\nAll done!")
