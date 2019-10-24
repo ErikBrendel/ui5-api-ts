@@ -6,7 +6,7 @@ This projects queries the official UI5 api and creates TypeScript declarations b
  - make sure to have python3 installed (you can download it [here](https://www.python.org/ftp/python/3.8.0/python-3.8.0-amd64.exe))
  - open up a command prompt and run `pip install requests requests_cache bs4`
  - go to the `scripts` folder of this repository
- - execute `download.py`
+ - execute `download.py` (double-click the file)
  - execute `ts_gen.py`
  - Now you have up-to-date ui5 type declarations!
  

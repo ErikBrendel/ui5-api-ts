@@ -4,6 +4,7 @@ from typing import *
 import json
 import os
 import re
+import time
 from bs4 import BeautifulSoup
 
 orig_prettify = BeautifulSoup.prettify
@@ -521,6 +522,7 @@ class Declaration:
 
 
 if __name__ == "__main__":
+    print("This script will generate your typescript declarations, hang tight...")
     decl = Declaration()
     for root, dirs, files in os.walk("../api/"):
         for file in files:
@@ -535,3 +537,4 @@ if __name__ == "__main__":
     decl.save_to("../ts/")
     print("Done!")
     print("\nAll done!")
+    time.sleep(2)

@@ -1,5 +1,6 @@
 import requests
 import requests_cache
+import time
 
 requests_cache.install_cache()
 
@@ -43,4 +44,7 @@ def load_entrypoint():
 
 
 if __name__ == "__main__":
+    print("This script will download the latest UI5 API information, hang tight...")
     load_entrypoint()
+    print("\nAll done!")
+    time.sleep(2)
