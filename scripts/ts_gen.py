@@ -3,6 +3,15 @@ from abc import abstractmethod
 from typing import *
 import json
 import os
+import re
+from bs4 import BeautifulSoup
+
+orig_prettify = BeautifulSoup.prettify
+r = re.compile(r'^(\s*)', re.MULTILINE)
+def prettify(self, encoding=None, formatter="minimal", indent_width=4):
+    return r.sub(r'\1' * indent_width, orig_prettify(self, encoding, formatter))
+BeautifulSoup.prettify = prettify
+
 
 INDENT = '    '
 forbidden_words = ['export', 'with', 'as']
@@ -19,6 +28,43 @@ def pp(name: str) -> str:
 
 def capitalize_first(data: str) -> str:
     return data[0].capitalize() + data[1:]
+
+
+CROSS_LINK = re.compile(r"<a[^>]* href=\"#/api/([a-zA-Z0-9.]+)\"[^>]*>\1</a>")
+
+
+class Comment:
+    text: str
+
+    def __init__(self, text: str = ''):
+        self.text = text
+
+    def write(self, f: 'TextIO', indent: str):
+        if self.text is None or len(self.text) == 0:
+            return
+        pretty_text = self.pretty_print(self.clean_text())
+        f.write(indent + "/**\n")
+        f.write('\n'.join([indent + " * " + line for line in pretty_text.split('\n')]) + "\n")
+        f.write(indent + " */\n")
+
+    def clean_text(self) -> str:
+        return CROSS_LINK.sub(r"{@link \1}", self.text)
+
+    def pretty_print(self, text: str) -> str:
+        # Double curly brackets to avoid problems with .format()
+        stripped_markup = text.replace('{', '{{').replace('}', '}}')
+
+        soup = BeautifulSoup(stripped_markup, features="html.parser")
+        for img in soup.find_all("img"):
+            img.decompose()
+
+        unformatted_tag_list = []
+
+        for i, tag in enumerate(soup.find_all(['span', 'a', 'code'])):
+            unformatted_tag_list.append(str(tag))
+            tag.replace_with('{' + 'unformatted_tag_list[{0}]'.format(i) + '}')
+
+        return soup.prettify(formatter="minimal").format(unformatted_tag_list=unformatted_tag_list)
 
 
 class TsType:
@@ -179,6 +225,7 @@ class Method:
 
     def __init__(self, json_method: json):
         self.name = json_method.get('name')
+        self.description = json_method.get('Description')
         self.visibility = json_method.get('visibility')
         self.description = json_method.get('description')
         self.parameters = []
@@ -242,13 +289,24 @@ class Method:
         return len(self.parameters)
 
 
-class Class:
+class CodeBlock:
+    description: str
+
+    def __init__(self):
+        self.description = None
+
+    def write_comment(self, f: 'TextIO', indent: str):
+        Comment(self.description).write(f, indent)
+
+
+class Class(CodeBlock):
     name: str
     methods: Dict[str, Method]
     constructor: Method
     is_interface: bool
 
     def __init__(self, name: str):
+        CodeBlock.__init__(self)
         self.name = name
         self.methods = {}
         self.constructor = None
@@ -259,6 +317,7 @@ class Class:
         return self
 
     def load(self, json_symbol: json):
+        self.description = json_symbol.get('description')
         for json_method in json_symbol.get('methods', []):
             m = Method(json_method)
             self.methods[m.name] = m
@@ -269,6 +328,7 @@ class Class:
     def write(self, f: 'TextIO', indent: str):
         if len(self.name) == 0:
             return
+        self.write_comment(f, indent)
         f.write(indent + self.ns_word() + " " + pp(self.name) + " {\n")
         if self.constructor is not None:
             self.constructor.write(f, indent + INDENT)
@@ -289,14 +349,16 @@ class Class:
             method.clean_up()
 
 
-class Enum:
+class Enum(CodeBlock):
     name: str
     options: List[str]
 
     def __init__(self, name):
+        CodeBlock.__init__(self)
         self.name = name
 
     def load(self, json_enum):
+        self.description = json_enum.get('description')
         options = []
         if 'nodes' in json_enum:
             options = json_enum['nodes']
@@ -309,6 +371,7 @@ class Enum:
         pass
 
     def write(self, f: 'TextIO', indent: str):
+        self.write_comment(f, indent)
         f.write(indent + 'enum ' + pp(self.name) + ' {\n')
         for option in self.options:
             f.write(indent + INDENT + option + ",\n")
@@ -434,7 +497,7 @@ class Declaration:
                 print('unknown kind: ' + kind)
 
     def save_to(self, directory: str):
-        with open(directory + 'ui5.d.ts', 'w') as f:
+        with open(directory + 'ui5.d.ts', 'w', encoding="utf8") as f:
             f.write("/**\n"
                     " * Auto generated UI5 declarations by Erik Brendel - do not modify\n"
                     " * It can be re-generated from the latest UI5 api docs\n"
