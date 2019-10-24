@@ -307,6 +307,7 @@ class CodeBlock:
 
 class Class(CodeBlock):
     name: str
+    base_class: str
     methods: Dict[str, Method]
     constructor: Method
     is_interface: bool
@@ -324,6 +325,7 @@ class Class(CodeBlock):
 
     def load(self, json_symbol: json):
         self.description = json_symbol.get('description')
+        self.base_class = json_symbol.get('extends')
         for json_method in json_symbol.get('methods', []):
             m = Method(json_method)
             self.methods[m.name] = m
@@ -335,7 +337,10 @@ class Class(CodeBlock):
         if len(self.name) == 0:
             return
         self.write_comment(f, indent)
-        f.write(indent + self.ns_word() + " " + pp(self.name) + " {\n")
+        f.write(indent + self.ns_word() + " " + pp(self.name) + " ")
+        if self.base_class is not None:
+            f.write("extends " + self.base_class + " ")
+        f.write("{\n")
         if self.constructor is not None:
             self.constructor.write(f, indent + INDENT)
         for key in sorted(self.methods):
@@ -460,18 +465,20 @@ class Namespace:
         if len(self.name) == 0:
             return
         my_name = (name + "." if len(name) > 0 else '') + pp(self.name)
-        with open('../ts/' + my_name + '.d.ts', 'w', encoding="utf8") as f:
-            f.write(FILE_HEADER)
-            f.write(indent + "namespace " + my_name + " {\n")
-            for name, typedef in self.typedefs.items():
-                typedef.write(f, indent + INDENT)
-            for key in sorted(self.enums):
-                self.enums[key].write(f, indent + INDENT)
-            for key in sorted(self.classes):
-                self.classes[key].write(f, indent + INDENT)
-            f.write(indent + "}\n")
         for key in sorted(self.namespaces):
             self.namespaces[key].write(indent, my_name)
+
+        if len(self.typedefs) + len(self.enums) + len(self.classes) > 0:
+            with open('../ts/' + my_name + '.d.ts', 'w', encoding="utf8") as f:
+                f.write(FILE_HEADER)
+                f.write(indent + "namespace " + my_name + " {\n")
+                for name, typedef in self.typedefs.items():
+                    typedef.write(f, indent + INDENT)
+                for key in sorted(self.enums):
+                    self.enums[key].write(f, indent + INDENT)
+                for key in sorted(self.classes):
+                    self.classes[key].write(f, indent + INDENT)
+                f.write(indent + "}\n")
 
     def clean_up(self):
         for name in list(self.namespaces.keys()):
