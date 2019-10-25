@@ -21,14 +21,22 @@ FILE_HEADER = "/**\n" \
               " */\n\n\n" \
               "declare "
 forbidden_words = ['export', 'with', 'as']
-forbidden_chars = [' ', '.', ':', '/', '-', '<', '>', '{', '}', '[', ']']
+forbidden_chars = [' ', ':', '/', '-', '<', '>', '{', '}', '[', ']']
 
 
 def pp(name: str) -> str:
     if name in forbidden_words:
         return '_' + name
+    if name.startswith('module:'):
+        name = name[len('module:'):].replace('/', '.')
     for char in forbidden_chars:
         name = name.replace(char, '_')
+    return name
+
+
+def ppn(name: str) -> str:
+    name = pp(name)
+    name = name.replace(".", "_")
     return name
 
 
@@ -210,7 +218,7 @@ class Parameter:
             self.type = TsType.parse(json_parameter['types'])
 
     def written(self) -> str:
-        name = pp(self.name)
+        name = ppn(self.name)
         if self.optional:
             name += "?"
         if self.type is not None:
@@ -228,9 +236,11 @@ class Method:
     visibility: str
     parameters: List[Parameter]
     return_type: Optional[TsType]
+    needs_function_word: bool
 
     def __init__(self, json_method: json):
-        self.name = json_method.get('name')
+        self.needs_function_word = False
+        self.name = json_method.get('name', '').split('/')[-1]
         self.description = json_method.get('description')
         self.visibility = json_method.get('visibility')
         self.parameters = []
@@ -247,7 +257,10 @@ class Method:
             return
         if self.description is not None:
             Comment(self.description).write(f, indent)
-        f.write(indent + pp(self.name) + "(")
+        f.write(indent)
+        if self.needs_function_word:
+            f.write("function ")
+        f.write(ppn(self.name) + "(")
         f.write(", ".join([param.written() for param in self.parameters]))
         f.write(")")
         if self.return_type is not None:
@@ -338,7 +351,7 @@ class Class(CodeBlock):
         if len(self.name) == 0:
             return
         self.write_comment(f, indent)
-        f.write(indent + self.ns_word() + " " + pp(self.name) + " ")
+        f.write(indent + self.ns_word() + " " + ppn(self.name) + " ")
         if self.base_class is not None:
             f.write("extends " + self.base_class + " ")
         f.write("{\n")
@@ -384,7 +397,7 @@ class Enum(CodeBlock):
 
     def write(self, f: 'TextIO', indent: str):
         self.write_comment(f, indent)
-        f.write(indent + 'enum ' + pp(self.name) + ' {\n')
+        f.write(indent + 'enum ' + ppn(self.name) + ' {\n')
         for option in self.options:
             f.write(indent + INDENT + option + ",\n")
         f.write(indent + '}\n')
@@ -397,7 +410,7 @@ class Typedef:
         self.name = name
 
     def write(self, f: 'TextIO', indent: str):
-        f.write(indent + 'type ' + pp(self.name) + ' = any\n')
+        f.write(indent + 'type ' + ppn(self.name) + ' = any\n')
 
 
 class Namespace:
@@ -406,6 +419,7 @@ class Namespace:
     classes: Dict[str, Class]
     enums: Dict[str, Enum]
     typedefs: Dict[str, Typedef]
+    methods: Dict[str, Method]
 
     def __init__(self, name: str):
         self.name = name
@@ -413,6 +427,7 @@ class Namespace:
         self.classes = {}
         self.enums = {}
         self.typedefs = {}
+        self.methods = {}
 
     def resolve_namespace(self, uri: str) -> 'Namespace':
         if '.' in uri:
@@ -462,14 +477,28 @@ class Namespace:
             self.typedefs[name] = Typedef(name)
         return self.typedefs[name]
 
+    def resolve_method(self, uri, json_method):
+        if '.' in uri:
+            [name, rest] = uri.split('.', 1)
+            self.resolve_single_namespace(name).resolve_method(rest, json_method)
+        else:
+            self.resolve_single_method(uri, json_method)
+
+    def resolve_single_method(self, name, json_method):
+        if name not in self.typedefs:
+            m = Method(json_method)
+            m.needs_function_word = True
+            self.methods[name] = m
+        return self.methods[name]
+
     def write(self, indent: str, name: str):
         if len(self.name) == 0:
             return
-        my_name = (name + "." if len(name) > 0 else '') + pp(self.name)
+        my_name = (name + "." if len(name) > 0 else '') + ppn(self.name)
         for key in sorted(self.namespaces):
             self.namespaces[key].write(indent, my_name)
 
-        if len(self.typedefs) + len(self.enums) + len(self.classes) > 0:
+        if len(self.typedefs) + len(self.enums) + len(self.classes) + len(self.methods) > 0:
             with open('../ts/' + my_name + '.d.ts', 'w', encoding="utf8") as f:
                 f.write(FILE_HEADER)
                 f.write(indent + "namespace " + my_name + " {\n")
@@ -477,6 +506,8 @@ class Namespace:
                     typedef.write(f, indent + INDENT)
                 for key in sorted(self.enums):
                     self.enums[key].write(f, indent + INDENT)
+                for key in sorted(self.methods):
+                    self.methods[key].write(f, indent + INDENT)
                 for key in sorted(self.classes):
                     self.classes[key].write(f, indent + INDENT)
                 f.write(indent + "}\n")
@@ -489,6 +520,8 @@ class Namespace:
             ns.clean_up()
         for name, enum in self.enums.items():
             enum.clean_up()
+        for name, method in self.methods.items():
+            method.clean_up()
         for name, clazz in self.classes.items():
             clazz.clean_up()
 
@@ -499,7 +532,7 @@ class Declaration:
     def load(self, json_data: json):
         for json_symbol in json_data['symbols']:
             kind = json_symbol['kind']
-            name = json_symbol['name']
+            name: str = pp(json_symbol['name'])
             if kind == 'namespace':
                 self.root_ns.resolve_namespace(name)
             elif kind == 'class':
@@ -510,6 +543,8 @@ class Declaration:
                 self.root_ns.resolve_class(name).as_interface().load(json_symbol)
             elif kind == 'typedef':
                 self.root_ns.resolve_typedef(name)
+            elif kind == 'function':
+                self.root_ns.resolve_method(name, json_symbol)
             else:
                 print('unknown kind: ' + kind)
 
@@ -526,7 +561,7 @@ if __name__ == "__main__":
     decl = Declaration()
     for root, dirs, files in os.walk("../api/"):
         for file in files:
-            if '.json' in file and not 'api-index' in file:
+            if '.json' in file and 'api-index' not in file:
                 with open(os.path.join(root, file), encoding="utf8") as f:
                     decl.load(json.load(f))
     print("Done loading!")
