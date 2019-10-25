@@ -49,14 +49,18 @@ CROSS_LINK = re.compile(r"<a[^>]* href=\"#/api/([a-zA-Z0-9.]+)\"[^>]*>\1</a>")
 
 class Comment:
     text: str
+    uri: str
 
-    def __init__(self, text: str = ''):
+    def __init__(self, text: str, uri: str = None):
         self.text = text
+        self.uri = uri
 
     def write(self, f: 'TextIO', indent: str):
         if self.text is None or len(self.text) == 0:
             return
         pretty_text = self.pretty_print(self.clean_text())
+        if self.uri is not None:
+            pretty_text += '\nOpen <a href="https://sapui5.netweaver.ondemand.com/#/api/' + self.uri + '">the docs</a>'
         f.write(indent + "/**\n")
         f.write('\n'.join([indent + " * " + line for line in pretty_text.split('\n')]) + "\n")
         f.write(indent + " */\n")
@@ -232,13 +236,15 @@ class Parameter:
 
 class Method:
     name: str
+    parent_uri: str
     description: str
     visibility: str
     parameters: List[Parameter]
     return_type: Optional[TsType]
     needs_function_word: bool
 
-    def __init__(self, json_method: json):
+    def __init__(self, parent_uri:str, json_method: json):
+        self.parent_uri = parent_uri
         self.needs_function_word = False
         self.name = json_method.get('name', '').split('/')[-1]
         self.description = json_method.get('description')
@@ -256,7 +262,7 @@ class Method:
         if len(self.name) == 0:
             return
         if self.description is not None:
-            Comment(self.description).write(f, indent)
+            Comment(self.description, self.parent_uri).write(f, indent)
         f.write(indent)
         if self.needs_function_word:
             f.write("function ")
@@ -310,13 +316,20 @@ class Method:
 
 
 class CodeBlock:
+    parent: 'Namespace'
+    name: str
     description: str
 
-    def __init__(self):
+    def __init__(self, name: str, parent: 'Namespace'):
+        self.parent = parent
+        self.name = name
         self.description = None
 
+    def full_uri(self):
+        return self.parent.full_uri() + "." + self.name
+
     def write_comment(self, f: 'TextIO', indent: str):
-        Comment(self.description).write(f, indent)
+        Comment(self.description, self.full_uri()).write(f, indent)
 
 
 class Class(CodeBlock):
@@ -326,9 +339,8 @@ class Class(CodeBlock):
     constructor: Method
     is_interface: bool
 
-    def __init__(self, name: str):
-        CodeBlock.__init__(self)
-        self.name = name
+    def __init__(self, name: str, parent: 'Namespace'):
+        CodeBlock.__init__(self, name, parent)
         self.methods = {}
         self.constructor = None
         self.is_interface = False
@@ -341,10 +353,10 @@ class Class(CodeBlock):
         self.description = json_symbol.get('description')
         self.base_class = json_symbol.get('extends')
         for json_method in json_symbol.get('methods', []):
-            m = Method(json_method)
+            m = Method(self.full_uri(), json_method)
             self.methods[m.name] = m
         if 'constructor' in json_symbol:
-            self.constructor = Method(json_symbol['constructor'])
+            self.constructor = Method(self.full_uri(), json_symbol['constructor'])
             self.constructor.name = 'constructor'
 
     def write(self, f: 'TextIO', indent: str):
@@ -375,12 +387,10 @@ class Class(CodeBlock):
 
 
 class Enum(CodeBlock):
-    name: str
     options: List[str]
 
-    def __init__(self, name):
-        CodeBlock.__init__(self)
-        self.name = name
+    def __init__(self, name, parent: 'Namespace'):
+        CodeBlock.__init__(self, name, parent)
 
     def load(self, json_enum):
         self.description = json_enum.get('description')
@@ -414,6 +424,7 @@ class Typedef:
 
 
 class Namespace:
+    parent: Optional['Namespace']
     name: str
     namespaces: Dict[str, 'Namespace']
     classes: Dict[str, Class]
@@ -421,7 +432,8 @@ class Namespace:
     typedefs: Dict[str, Typedef]
     methods: Dict[str, Method]
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, parent: 'Namespace' = None):
+        self.parent = parent
         self.name = name
         self.namespaces = {}
         self.classes = {}
@@ -438,7 +450,7 @@ class Namespace:
 
     def resolve_single_namespace(self, name) -> 'Namespace':
         if name not in self.namespaces:
-            self.namespaces[name] = Namespace(name)
+            self.namespaces[name] = Namespace(name, self)
         return self.namespaces[name]
 
     def resolve_class(self, uri) -> Class:
@@ -450,7 +462,7 @@ class Namespace:
 
     def resolve_single_class(self, name) -> Class:
         if name not in self.classes:
-            self.classes[name] = Class(name)
+            self.classes[name] = Class(name, self)
         return self.classes[name]
 
     def resolve_enum(self, uri) -> Enum:
@@ -462,7 +474,7 @@ class Namespace:
 
     def resolve_single_enum(self, name) -> Enum:
         if name not in self.enums:
-            self.enums[name] = Enum(name)
+            self.enums[name] = Enum(name, self)
         return self.enums[name]
 
     def resolve_typedef(self, uri) -> Typedef:
@@ -486,7 +498,7 @@ class Namespace:
 
     def resolve_single_method(self, name, json_method):
         if name not in self.typedefs:
-            m = Method(json_method)
+            m = Method(self.full_uri(), json_method)
             m.needs_function_word = True
             self.methods[name] = m
         return self.methods[name]
@@ -524,6 +536,11 @@ class Namespace:
             method.clean_up()
         for name, clazz in self.classes.items():
             clazz.clean_up()
+
+    def full_uri(self):
+        if self.parent is None or self.parent.full_uri() == 'root':
+            return self.name
+        return self.parent.full_uri() + "." + self.name
 
 
 class Declaration:
