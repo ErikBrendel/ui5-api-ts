@@ -177,6 +177,7 @@ class CodeBlock:
 class Class(CodeBlock):
     name: str
     base_class: str
+    interfaces: []
     methods: Dict[str, Method]
     constructor: Method
     is_interface: bool
@@ -194,6 +195,7 @@ class Class(CodeBlock):
     def load(self, json_symbol: json):
         self.description = json_symbol.get('description')
         self.base_class = json_symbol.get('extends')
+        self.interfaces = json_symbol.get('implements', [])
         for json_method in json_symbol.get('methods', []):
             m = Method(self.full_uri(), json_method)
             self.methods[m.name] = m
@@ -212,6 +214,8 @@ class Class(CodeBlock):
         f.write(indent + self.ns_word() + " " + ppn(self.name) + " ")
         if self.base_class is not None:
             f.write("extends " + self.base_class + " ")
+        if len(self.interfaces) > 0:
+            f.write("implements " + ", ".join(self.interfaces) + " ")
         f.write("{\n")
         if self.constructor is not None:
             self.constructor.write(f, indent + INDENT)
