@@ -1,17 +1,11 @@
 # https://www.typescriptlang.org/docs/handbook/declaration-files/introduction.html
-from abc import abstractmethod
 from typing import *
 import json
 import os
-import re
 import time
-from bs4 import BeautifulSoup
 
-orig_prettify = BeautifulSoup.prettify
-r = re.compile(r'^(\s*)', re.MULTILINE)
-def prettify(self, encoding=None, formatter="minimal", indent_width=4):
-    return r.sub(r'\1' * indent_width, orig_prettify(self, encoding, formatter))
-BeautifulSoup.prettify = prettify
+from scripts.util.TsTyping import *
+from scripts.util.Comment import *
 
 
 INDENT = '    '
@@ -42,165 +36,6 @@ def ppn(name: str) -> str:
 
 def capitalize_first(data: str) -> str:
     return data[0].capitalize() + data[1:]
-
-
-CROSS_LINK = re.compile(r"<a[^>]* href=\"#/api/([a-zA-Z0-9.]+)\"[^>]*>\1</a>")
-
-
-class Comment:
-    text: str
-    uri: str
-
-    def __init__(self, text: str, uri: str = None):
-        self.text = text
-        self.uri = uri
-
-    def write(self, f: 'TextIO', indent: str):
-        if self.text is None or len(self.text) == 0:
-            return
-        pretty_text = self.pretty_print(self.clean_text())
-        if self.uri is not None:
-            pretty_text += '\nOpen <a href="https://sapui5.netweaver.ondemand.com/#/api/' + self.uri + '">the docs</a>'
-        f.write(indent + "/**\n")
-        f.write('\n'.join([indent + " * " + line for line in pretty_text.split('\n')]) + "\n")
-        f.write(indent + " */\n")
-
-    def clean_text(self) -> str:
-        return CROSS_LINK.sub(r"{@link \1}", self.text)
-
-    def pretty_print(self, text: str) -> str:
-        # Double curly brackets to avoid problems with .format()
-        stripped_markup = text.replace('{', '{{').replace('}', '}}')
-
-        soup = BeautifulSoup(stripped_markup, features="html.parser")
-        for img in soup.find_all("img"):
-            img.decompose()
-
-        unformatted_tag_list = []
-
-        for i, tag in enumerate(soup.find_all(['span', 'a', 'code'])):
-            unformatted_tag_list.append(str(tag))
-            tag.replace_with('{' + 'unformatted_tag_list[{0}]'.format(i) + '}')
-
-        return soup.prettify(formatter="minimal").format(unformatted_tag_list=unformatted_tag_list)
-
-
-class TsType:
-    @abstractmethod
-    def combine_with(self, other: 'TsType') -> 'CombinedType':
-        pass
-
-    @abstractmethod
-    def combined_with(self, other: 'TsType') -> 'CombinedType':
-        pass
-
-    @abstractmethod
-    def combine_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
-        pass
-
-    @abstractmethod
-    def combined_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
-        pass
-
-    @abstractmethod
-    def combine_with_combined(self, other: 'CombinedType') -> 'CombinedType':
-        pass
-
-    @abstractmethod
-    def combined_with_combined(self, other: 'CombinedType') -> 'CombinedType':
-        pass
-
-    @abstractmethod
-    def written(self) -> str:
-        pass
-
-    @staticmethod
-    def parse(json_types: List) -> 'TsType':
-        if len(json_types) == 1:
-            return TypeLiteral(TsType.parse_type_name(json_types[0]))
-        else:
-            return CombinedType([TypeLiteral(TsType.parse_type_name(t)) for t in json_types])
-
-    @staticmethod
-    def parse_type_name(json_type):
-        name = ''
-        if 'name' in json_type:
-            name = json_type['name']
-        elif 'value' in json_type:
-            name = json_type['value']
-        else:
-            raise Exception("cannot get type name!")
-        if name == 'function':
-            name = 'Function'
-        if name == 'int':
-            name = 'number'
-        if name == 'float':
-            name = 'number'
-        if name == 'double':
-            name = 'number'
-        if name == 'real':
-            name = 'number'
-        if name == 'array':
-            name = 'any[]'
-        if name == 'map':
-            name = 'any'
-        return name
-
-
-class TypeLiteral(TsType):
-    name: str
-
-    def __init__(self, name: str):
-        self.name = name
-
-    def combine_with(self, other: 'TsType') -> 'CombinedType':
-        return other.combined_with_literal(self)
-
-    def combined_with(self, other: 'TsType') -> 'CombinedType':
-        return other.combine_with_literal(self)
-
-    def combine_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
-        return CombinedType([self, other])
-
-    def combined_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
-        return CombinedType([other, self])
-
-    def combine_with_combined(self, other: 'CombinedType') -> 'CombinedType':
-        return other.combined_with_literal(self)
-
-    def combined_with_combined(self, other: 'CombinedType') -> 'CombinedType':
-        return other.combine_with_literal(self)
-
-    def written(self) -> str:
-        return self.name
-
-
-class CombinedType(TsType):
-    options: List[TsType]
-
-    def __init__(self, options):
-        self.options = options or []
-
-    def combine_with(self, other: 'TsType') -> 'CombinedType':
-        return other.combined_with_combined(self)
-
-    def combined_with(self, other: 'TsType') -> 'CombinedType':
-        return other.combine_with_combined(self)
-
-    def combine_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
-        return CombinedType([*self.options, other])
-
-    def combined_with_literal(self, other: 'TypeLiteral') -> 'CombinedType':
-        return CombinedType([other, *self.options])
-
-    def combine_with_combined(self, other: 'CombinedType') -> 'CombinedType':
-        return CombinedType([*self.options, *other.options])
-
-    def combined_with_combined(self, other: 'CombinedType') -> 'CombinedType':
-        return CombinedType([*other.options, *self.options])
-
-    def written(self) -> str:
-        return '(' + " | ".join([o.written() for o in self.options]) + ")"
 
 
 class Parameter:
