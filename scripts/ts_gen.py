@@ -154,17 +154,24 @@ class CodeBlock:
     parent: 'Namespace'
     name: str
     description: str
+    has_sample: bool
+    ux_guide: Optional[Tuple[str, str]]  # (url, displayString)
 
     def __init__(self, name: str, parent: 'Namespace'):
         self.parent = parent
         self.name = name
         self.description = None
+        self.has_sample = False
+        self.ux_guide = None
 
     def full_uri(self):
         return self.parent.full_uri() + "." + self.name
 
     def write_comment(self, f: 'TextIO', indent: str):
-        Comment(self.description, self.full_uri()).write(f, indent)
+        comment = Comment(self.description, self.full_uri())
+        comment.has_sample = self.has_sample
+        comment.ux_guide = self.ux_guide
+        comment.write(f, indent)
 
 
 class Class(CodeBlock):
@@ -193,6 +200,10 @@ class Class(CodeBlock):
         if 'constructor' in json_symbol:
             self.constructor = Method(self.full_uri(), json_symbol['constructor'])
             self.constructor.name = 'constructor'
+        if 'hasSample' in json_symbol and json_symbol['hasSample']:
+            self.has_sample = True
+        if 'uxGuidelinesLink' in json_symbol:
+            self.ux_guide = (json_symbol['uxGuidelinesLink'], json_symbol['uxGuidelinesLinkText'])
 
     def write(self, f: 'TextIO', indent: str):
         if len(self.name) == 0:
