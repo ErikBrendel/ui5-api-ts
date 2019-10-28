@@ -96,3 +96,4 @@ fabric.properties
 api/*.json
 ts/*.d.ts
 **/cache.sqlite
+scripts/util/__pycache__
