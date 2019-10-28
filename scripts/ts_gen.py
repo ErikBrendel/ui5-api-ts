@@ -153,7 +153,7 @@ class Method:
 class CodeBlock:
     parent: 'Namespace'
     name: str
-    description: str
+    description: Optional[str]
     has_sample: bool
     ux_guide: Optional[Tuple[str, str]]  # (url, displayString)
 
@@ -168,6 +168,8 @@ class CodeBlock:
         return self.parent.full_uri() + "." + self.name
 
     def write_comment(self, f: 'TextIO', indent: str):
+        if self.description is None:
+            return
         comment = Comment(self.description, self.full_uri())
         comment.has_sample = self.has_sample
         comment.ux_guide = self.ux_guide
@@ -263,14 +265,23 @@ class Enum(CodeBlock):
         f.write(indent + '}\n')
 
 
-class Typedef:
-    name: str
+class Typedef(CodeBlock):
+    type: str
 
-    def __init__(self, name: str):
-        self.name = name
+    def __init__(self, name: str, parent: 'Namespace'):
+        CodeBlock.__init__(self, name, parent)
+        self.type = 'any'
 
     def write(self, f: 'TextIO', indent: str):
-        f.write(indent + 'type ' + ppn(self.name) + ' = any\n')
+        self.write_comment(f, indent)
+        f.write(indent + 'type ' + ppn(self.name) + ' = ' + self.type + '\n')
+
+    def load(self, json_typedef):
+        meta = json_typedef.get('ui5-metadata', {})
+        if 'basetype' in meta:
+            self.type = meta['basetype']
+        if 'pattern' in meta:
+            self.description = 'Needs to follow this regex: ' + meta['pattern']
 
 
 class Namespace:
@@ -336,7 +347,7 @@ class Namespace:
 
     def resolve_single_typedef(self, name) -> Typedef:
         if name not in self.typedefs:
-            self.typedefs[name] = Typedef(name)
+            self.typedefs[name] = Typedef(name, self)
         return self.typedefs[name]
 
     def resolve_method(self, uri, json_method):
@@ -400,6 +411,9 @@ class Declaration:
         for json_symbol in json_data['symbols']:
             kind = json_symbol['kind']
             name: str = pp(json_symbol['name'])
+            meta = json_symbol.get('ui5-metadata', {})
+            if meta.get('stereotype', '') == 'datatype':
+                kind = 'typedef'
             if kind == 'namespace':
                 self.root_ns.resolve_namespace(name)
             elif kind == 'class':
@@ -409,7 +423,7 @@ class Declaration:
             elif kind == 'interface':
                 self.root_ns.resolve_class(name).as_interface().load(json_symbol)
             elif kind == 'typedef':
-                self.root_ns.resolve_typedef(name)
+                self.root_ns.resolve_typedef(name).load(json_symbol)
             elif kind == 'function':
                 self.root_ns.resolve_method(name, json_symbol)
             else:

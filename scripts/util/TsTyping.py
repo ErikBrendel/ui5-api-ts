@@ -61,6 +61,8 @@ class TsType:
             name = 'any[]'
         if name == 'map':
             name = 'any'
+        if name == '*':
+            name = 'any'
         return name
 
 
