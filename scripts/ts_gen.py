@@ -156,6 +156,7 @@ class CodeBlock:
     description: Optional[str]
     has_sample: bool
     ux_guide: Optional[Tuple[str, str]]  # (url, displayString)
+    lib: Optional[str]
 
     def __init__(self, name: str, parent: 'Namespace'):
         self.parent = parent
@@ -163,6 +164,7 @@ class CodeBlock:
         self.description = None
         self.has_sample = False
         self.ux_guide = None
+        self.lib = None
 
     def full_uri(self):
         return self.parent.full_uri() + "." + self.name
@@ -173,7 +175,12 @@ class CodeBlock:
         comment = Comment(self.description, self.full_uri())
         comment.has_sample = self.has_sample
         comment.ux_guide = self.ux_guide
+        comment.lib = self.lib
         comment.write(f, indent)
+
+    def set_lib(self, lib: str) -> 'CodeBlock':
+        self.lib = lib
+        return self
 
 
 class Class(CodeBlock):
@@ -407,7 +414,7 @@ class Namespace:
 class Declaration:
     root_ns: Namespace = Namespace("root")
 
-    def load(self, json_data: json):
+    def load(self, json_data: json, lib_name: str):
         for json_symbol in json_data['symbols']:
             kind = json_symbol['kind']
             name: str = pp(json_symbol['name'])
@@ -417,13 +424,13 @@ class Declaration:
             if kind == 'namespace':
                 self.root_ns.resolve_namespace(name)
             elif kind == 'class':
-                self.root_ns.resolve_class(name).load(json_symbol)
+                self.root_ns.resolve_class(name).set_lib(lib_name).load(json_symbol)
             elif kind == 'enum':
-                self.root_ns.resolve_enum(name).load(json_symbol)
+                self.root_ns.resolve_enum(name).set_lib(lib_name).load(json_symbol)
             elif kind == 'interface':
-                self.root_ns.resolve_class(name).as_interface().load(json_symbol)
+                self.root_ns.resolve_class(name).set_lib(lib_name).as_interface().load(json_symbol)
             elif kind == 'typedef':
-                self.root_ns.resolve_typedef(name).load(json_symbol)
+                self.root_ns.resolve_typedef(name).set_lib(lib_name).load(json_symbol)
             elif kind == 'function':
                 self.root_ns.resolve_method(name, json_symbol)
             else:
@@ -443,8 +450,9 @@ if __name__ == "__main__":
     for root, dirs, files in os.walk("../api/"):
         for file in files:
             if '.json' in file and 'api-index' not in file:
+                lib_name = file[:len('.json')*-1]
                 with open(os.path.join(root, file), encoding="utf8") as f:
-                    decl.load(json.load(f))
+                    decl.load(json.load(f), lib_name)
     print("Done loading!")
     print("Now cleaning up... ", end="", flush=True)
     decl.clean_up()
