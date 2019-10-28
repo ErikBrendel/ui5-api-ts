@@ -34,6 +34,8 @@ class Comment:
         return CROSS_LINK.sub(r"{@link \1}", self.text)
 
     def pretty_print(self, text: str) -> str:
+        return text  # disabled, since it really impacts the performance and is not really needed
+
         # Double curly brackets to avoid problems with .format()
         stripped_markup = text.replace('{', '{{').replace('}', '}}')
 
