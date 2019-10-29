@@ -77,8 +77,11 @@ class TsType:
             name = 'any'
         if name == '*':
             name = 'any'
-        if name.startswith("Array.<") and not name.endswith(">"):
-            name = "Array<" + name[len("Array.<"):] + ">"
+        if name.startswith("Array.<") and not name.endswith(">"):  # this is really bad!
+            # this can only happen if we are combined with a different type, and the ui5 api json
+            # sadly splits this multi-type-array at this inner "|"
+            # see: Input::getSuggestionRows
+            name = "Array<" + name[len("Array.<"):]
         if name.startswith("Promise.<") and name.endswith(">"):
             name = "Promise<" + name[len("Promise.<"):]
         name = OBJ_MAP.sub(r'Map<\1,\2>', name)
