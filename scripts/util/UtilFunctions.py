@@ -23,6 +23,7 @@ def pp_name(name: str) -> str:
     """pretty-print a variable name"""
     name = pp_class_name(name)
     name = name.replace(".", "_")
+    name = name.replace("function", "_function")
     return name
 
 
