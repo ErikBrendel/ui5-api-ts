@@ -51,12 +51,20 @@ class TsType:
             name = 'Function'
         if name == 'int':
             name = 'number'
+        if name == 'int[]':
+            name = 'number[]'
         if name == 'float':
             name = 'number'
+        if name == 'float[]':
+            name = 'number[]'
         if name == 'double':
             name = 'number'
+        if name == 'double[]':
+            name = 'number[]'
         if name == 'real':
             name = 'number'
+        if name == 'real[]':
+            name = 'number[]'
         if name == 'array':
             name = 'any[]'
         if name == 'map':
