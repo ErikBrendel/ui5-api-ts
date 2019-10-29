@@ -374,6 +374,8 @@ class Namespace:
                 for key in sorted(self.classes):
                     self.classes[key].write(f, indent + INDENT)
                 f.write(indent + "}\n")
+                if self.name == 'jQuery':
+                    f.write("type jQuery = any;\n")
 
     def clean_up(self):
         for name in list(self.namespaces.keys()):

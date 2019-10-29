@@ -1,4 +1,4 @@
-forbidden_words = ['export', 'with', 'as']
+forbidden_words = ['with', 'as']
 forbidden_chars = [' ', ':', '/', '-', '<', '>', '{', '}', '[', ']']
 
 
@@ -6,8 +6,8 @@ def pp_type(name: str) -> str:
     """pretty-print a type or identifier (e.g. allowing array brackets and templates)"""
     if name in forbidden_words:
         return '_' + name
-    if name.startswith('module:'):
-        name = name[len('module:'):].replace('/', '.')
+    if 'module:' in name:
+        name = name.replace('module:', '').replace('/', '.')
     return name
 
 

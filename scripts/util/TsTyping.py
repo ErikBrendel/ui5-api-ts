@@ -1,6 +1,10 @@
 from abc import abstractmethod
 from typing import *
+import re
 from scripts.util.UtilFunctions import *
+
+
+OBJ_MAP = re.compile(r"Object\.<(.+),(.+)>")
 
 
 class TsType:
@@ -73,6 +77,11 @@ class TsType:
             name = 'any'
         if name == '*':
             name = 'any'
+        if name.startswith("Array.<") and not name.endswith(">"):
+            name = "Array<" + name[len("Array.<"):] + ">"
+        if name.startswith("Promise.<") and name.endswith(">"):
+            name = "Promise<" + name[len("Promise.<"):]
+        name = OBJ_MAP.sub(r'Map<\1,\2>', name)
         return name
 
 
