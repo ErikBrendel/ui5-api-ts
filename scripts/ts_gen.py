@@ -36,7 +36,7 @@ class Parameter:
             self.type = TsType.parse(json_parameter['types'])
 
     def written(self) -> str:
-        name = ppn(self.name)
+        name = pp_name(self.name)
         if self.optional:
             name += "?"
         if self.type is not None:
@@ -83,7 +83,7 @@ class Method:
         f.write(indent)
         if self.needs_function_word:
             f.write("function ")
-        f.write(ppn(self.name) + "(")
+        f.write(pp_name(self.name) + "(")
         f.write(", ".join([param.written() for param in self.parameters]))
         f.write(")")
         if self.return_type is not None:
@@ -202,7 +202,7 @@ class Class(CodeBlock):
         if len(self.name) == 0:
             return
         self.write_comment(f, indent)
-        f.write(indent + self.ns_word() + " " + ppn(self.name) + " ")
+        f.write(indent + self.ns_word() + " " + pp_name(self.name) + " ")
         if self.base_class is not None:
             f.write("extends " + self.base_class + " ")
         if len(self.interfaces) > 0:
@@ -248,7 +248,7 @@ class Enum(CodeBlock):
 
     def write(self, f: 'TextIO', indent: str):
         self.write_comment(f, indent)
-        f.write(indent + 'enum ' + ppn(self.name) + ' {\n')
+        f.write(indent + 'enum ' + pp_name(self.name) + ' {\n')
         for option in self.options:
             f.write(indent + INDENT + option + ",\n")
         f.write(indent + '}\n')
@@ -263,7 +263,7 @@ class Typedef(CodeBlock):
 
     def write(self, f: 'TextIO', indent: str):
         self.write_comment(f, indent)
-        f.write(indent + 'type ' + ppn(self.name) + ' = ' + self.type + '\n')
+        f.write(indent + 'type ' + pp_name(self.name) + ' = ' + self.type + '\n')
 
     def load(self, json_typedef):
         meta = json_typedef.get('ui5-metadata', {})
@@ -357,7 +357,7 @@ class Namespace:
     def write(self, indent: str, name: str):
         if len(self.name) == 0:
             return
-        my_name = (name + "." if len(name) > 0 else '') + ppn(self.name)
+        my_name = (name + "." if len(name) > 0 else '') + pp_name(self.name)
         for key in sorted(self.namespaces):
             self.namespaces[key].write(indent, my_name)
 
@@ -404,7 +404,7 @@ class Declaration:
     def load(self, json_data: json, lib_name: str):
         for json_symbol in json_data['symbols']:
             kind = json_symbol['kind']
-            name: str = pp(json_symbol['name'])
+            name: str = pp_class_name(json_symbol['name'])
             meta = json_symbol.get('ui5-metadata', {})
             if meta.get('stereotype', '') == 'datatype':
                 kind = 'typedef'

@@ -48,7 +48,7 @@ class TsType:
             name = json_type['value']
         else:
             raise Exception("cannot get type name!")
-        name = pp(name)
+        name = pp_type(name)
         if name == 'function':
             name = 'Function'
         if name == 'int':
