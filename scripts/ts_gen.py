@@ -78,10 +78,13 @@ class Method:
     return_type: Optional[TsType]
     needs_function_word: bool
 
-    def __init__(self, parent_uri:str, json_method: json):
+    def __init__(self, parent_uri: str, json_method: json):
         self.parent_uri = parent_uri
         self.needs_function_word = False
         self.name = json_method.get('name', '').split('/')[-1]
+        if self.name.startswith(self.parent_uri):
+            offset = len(self.parent_uri) + 1
+            self.name = self.name[offset:]
         self.description = json_method.get('description')
         self.visibility = json_method.get('visibility')
         self.parameters = []
@@ -188,7 +191,7 @@ class Class(CodeBlock):
     base_class: str
     interfaces: []
     methods: Dict[str, Method]
-    constructor: Method
+    constructor: Optional[Method]
     is_interface: bool
 
     def __init__(self, name: str, parent: 'Namespace'):
@@ -362,11 +365,12 @@ class Namespace:
             [name, rest] = uri.split('.', 1)
             self.resolve_single_namespace(name).resolve_method(rest, json_method)
         else:
-            self.resolve_single_method(uri, json_method)
+            self.resolve_single_method(json_method)
 
-    def resolve_single_method(self, name, json_method):
-        if name not in self.typedefs:
-            m = Method(self.full_uri(), json_method)
+    def resolve_single_method(self, json_method):
+        m = Method(self.full_uri(), json_method)
+        name = m.name
+        if name not in self.methods:
             m.needs_function_word = True
             self.methods[name] = m
         return self.methods[name]
@@ -410,6 +414,10 @@ class Namespace:
             return self.name
         return self.parent.full_uri() + "." + self.name
 
+    def load(self, json_namespace):
+        for json_method in json_namespace.get('methods', {}):
+            self.resolve_single_method(json_method)
+
 
 class Declaration:
     root_ns: Namespace = Namespace("root")
@@ -422,7 +430,7 @@ class Declaration:
             if meta.get('stereotype', '') == 'datatype':
                 kind = 'typedef'
             if kind == 'namespace':
-                self.root_ns.resolve_namespace(name)
+                self.root_ns.resolve_namespace(name).load(json_symbol)
             elif kind == 'class':
                 self.root_ns.resolve_class(name).set_lib(lib_name).load(json_symbol)
             elif kind == 'enum':
