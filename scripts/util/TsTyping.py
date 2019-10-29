@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from typing import *
+from scripts.util.UtilFunctions import *
 
 
 class TsType:
@@ -47,6 +48,7 @@ class TsType:
             name = json_type['value']
         else:
             raise Exception("cannot get type name!")
+        name = pp(name)
         if name == 'function':
             name = 'Function'
         if name == 'int':
