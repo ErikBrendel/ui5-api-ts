@@ -49,8 +49,9 @@ class Parameter:
 
 
 class Method:
-    name: str
     parent_uri: str
+    name: str
+    visibility: Optional[str]
     description: str
     visibility: str
     parameters: List[Parameter]
@@ -59,11 +60,11 @@ class Method:
 
     def __init__(self, parent_uri: str, json_method: json):
         self.parent_uri = parent_uri
-        self.needs_function_word = False
         self.name = json_method.get('name', '').split('/')[-1]
         if self.name.startswith(self.parent_uri):
             offset = len(self.parent_uri) + 1
             self.name = self.name[offset:]
+        self.visibility = json_method.get('visibility')
         self.description = json_method.get('description')
         self.visibility = json_method.get('visibility')
         self.parameters = []
@@ -74,6 +75,7 @@ class Method:
                 self.parameters.append(p)
         if 'returnValue' in json_method and 'types' in json_method['returnValue']:
             self.return_type = TsType.parse(json_method['returnValue']['types'])
+        self.needs_function_word = False
 
     def write(self, f: 'TextIO', indent: str):
         if len(self.name) == 0:
@@ -81,6 +83,8 @@ class Method:
         if self.description is not None:
             Comment(self.description, self.parent_uri).write(f, indent)
         f.write(indent)
+        if self.visibility is not None:
+            f.write(self.visibility + " ")
         if self.needs_function_word:
             f.write("function ")
         f.write(pp_name(self.name) + "(")
@@ -225,6 +229,8 @@ class Class(CodeBlock):
             self.constructor.clean_up()
         for name, method in self.methods.items():
             method.clean_up()
+            if self.is_interface:
+                method.visibility = None
 
 
 class Enum(CodeBlock):
@@ -339,14 +345,14 @@ class Namespace:
             self.typedefs[name] = Typedef(name, self)
         return self.typedefs[name]
 
-    def resolve_method(self, uri, json_method):
+    def resolve_method(self, uri, json_method) -> Method:
         if '.' in uri:
             [name, rest] = uri.split('.', 1)
-            self.resolve_single_namespace(name).resolve_method(rest, json_method)
+            return self.resolve_single_namespace(name).resolve_method(rest, json_method)
         else:
-            self.resolve_single_method(json_method)
+            return self.resolve_single_method(json_method)
 
-    def resolve_single_method(self, json_method):
+    def resolve_single_method(self, json_method) -> Method:
         m = Method(self.full_uri(), json_method)
         name = m.name
         if name not in self.methods:
@@ -395,7 +401,7 @@ class Namespace:
 
     def load(self, json_namespace):
         for json_method in json_namespace.get('methods', {}):
-            self.resolve_single_method(json_method)
+            self.resolve_single_method(json_method).visibility = None
 
 
 class Declaration:
@@ -419,7 +425,7 @@ class Declaration:
             elif kind == 'typedef':
                 self.root_ns.resolve_typedef(name).set_lib(lib_name).load(json_symbol)
             elif kind == 'function':
-                self.root_ns.resolve_method(name, json_symbol)
+                self.root_ns.resolve_method(name, json_symbol).visibility = None
             else:
                 print('unknown kind: ' + kind)
 
