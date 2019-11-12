@@ -51,6 +51,7 @@ class Parameter:
 class Method:
     parent_uri: str
     name: str
+    static: bool
     visibility: Optional[str]
     description: str
     visibility: str
@@ -61,9 +62,11 @@ class Method:
     def __init__(self, parent_uri: str, json_method: json):
         self.parent_uri = parent_uri
         self.name = json_method.get('name', '').split('/')[-1]
+        self.static = False
         if self.name.startswith(self.parent_uri):
             offset = len(self.parent_uri) + 1
             self.name = self.name[offset:]
+            self.static = True
         self.visibility = json_method.get('visibility')
         self.description = json_method.get('description')
         self.visibility = json_method.get('visibility')
@@ -77,14 +80,22 @@ class Method:
             self.return_type = TsType.parse(json_method['returnValue']['types'])
         self.needs_function_word = False
 
+    def maybe_static_name(self):
+        if self.static:
+            return self.parent_uri + "." + self.name
+        else:
+            return self.name
+
     def write(self, f: 'TextIO', indent: str):
         if len(self.name) == 0:
             return
         if self.description is not None:
-            Comment(self.description, self.parent_uri + "/methods/" + self.name).write(f, indent)
+            Comment(self.description, self.parent_uri + "/methods/" + self.maybe_static_name()).write(f, indent)
         f.write(indent)
         if self.visibility is not None:
-            f.write(self.visibility + " ")
+            f.write(visibility_parse(self.visibility) + " ")
+        if self.static and not self.needs_function_word:
+            f.write("static ")
         if self.needs_function_word:
             f.write("function ")
         f.write(pp_name(self.name) + "(")

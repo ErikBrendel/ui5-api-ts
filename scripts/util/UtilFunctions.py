@@ -2,8 +2,15 @@ forbidden_words = ['with', 'as']
 forbidden_chars = [' ', ':', '/', '-', '<', '>', '{', '}', '[', ']']
 
 
+def visibility_parse(raw_visibility: str) -> str:
+    if raw_visibility == 'restricted':
+        return 'private'
+    return raw_visibility
+
+
 def pp_type(name: str) -> str:
     """pretty-print a type or identifier (e.g. allowing array brackets and templates)"""
+    name = name.strip()
     if name in forbidden_words:
         return '_' + name
     if 'module:' in name:

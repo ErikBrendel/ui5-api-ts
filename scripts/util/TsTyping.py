@@ -71,10 +71,12 @@ class TsType:
             name = 'number'
         if name == 'real[]':
             name = 'number[]'
-        if name == 'array':
+        if name.lower() == 'array':
             name = 'any[]'
-        if name == 'map':
-            name = 'any'
+        if name.lower() == 'map':
+            name = 'Map<any, any>'
+        if name.lower() == 'promise':
+            name = 'Promise<any>'
         if name == '*':
             name = 'any'
         if name.startswith("Array.<"):  # this is really bad!
