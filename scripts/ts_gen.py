@@ -81,7 +81,7 @@ class Method:
         if len(self.name) == 0:
             return
         if self.description is not None:
-            Comment(self.description, self.parent_uri).write(f, indent)
+            Comment(self.description, self.parent_uri + "/methods/" + self.name).write(f, indent)
         f.write(indent)
         if self.visibility is not None:
             f.write(self.visibility + " ")
