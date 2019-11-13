@@ -19,30 +19,37 @@ class Comment:
     text: str
     parameters: List[Tuple[str, str]]  # (name, description)
     uri: str
+    docs_sub_uri: str
     has_sample: bool
     ux_guide: Optional[Tuple[str, str]]  # (url, displayString)
     lib: Optional[str]
+    source_code_line: Optional[int]
 
-    def __init__(self, text: str, uri: str = None):
+    def __init__(self, text: str, uri: str = None, docs_sub_uri: str = ''):
         self.text = text
         self.parameters = []
         self.uri = uri
+        self.docs_sub_uri = docs_sub_uri
         self.has_sample = False
         self.ux_guide = None
         self.lib = None
+        self.source_code_line = None
 
     def write(self, f: 'TextIO', indent: str):
         if self.text is None or len(self.text) == 0:
             return
         pretty_text = self.pretty_print(self.clean_text())
         if self.uri is not None:
-            pretty_text += '\nOpen <a href="https://sapui5.netweaver.ondemand.com/#/api/' + self.uri + '">the docs</a>'
+            pretty_text += '\nOpen <a href="https://sapui5.netweaver.ondemand.com/#/api/' + self.uri + self.docs_sub_uri + '">the docs</a>'
         if self.has_sample:
             pretty_text += '\nOpen <a href="https://sapui5.netweaver.ondemand.com/#/entity/' + self.uri + '">examples</a>'
         if self.ux_guide is not None:
             pretty_text += '\nOpen <a href="' + self.ux_guide[0] + '">UX Guidelines for "' + self.ux_guide[1] + '"</a>'
         if self.lib is not None and self.uri is not None:
-            pretty_text += '\nOpen <a href="https://github.com/SAP/openui5/blob/master/src/' + self.lib + '/src/' + self.uri.replace('.', '/') + '.js">source code</a>'
+            pretty_text += '\nOpen <a href="https://github.com/SAP/openui5/blob/master/src/' + self.lib + '/src/' + self.uri.replace('.', '/') + '.js'
+            if self.source_code_line is not None:
+                pretty_text += '#L' + str(self.source_code_line)
+            pretty_text += '">source code</a>'
         f.write(indent + "/**\n")
         f.write('\n'.join([indent + " * " + line for line in pretty_text.split('\n')]) + "\n")
         f.write(indent + " */\n")

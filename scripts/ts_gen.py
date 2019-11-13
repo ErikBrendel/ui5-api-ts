@@ -11,9 +11,10 @@ from scripts.util.UtilFunctions import *
 import requests
 import requests_cache
 requests_cache.install_cache()
-# todo: load source files and find out the lines of functions to add source code links to them
 
+SOURCE_CACHE = {}
 
+ENABLE_SOURCE_LINKS_WITH_LINE_NUMBERS = True
 INDENT = '    '
 FILE_HEADER = "/**\n" \
               " * Auto generated UI5 declarations by Erik Brendel - do not modify\n" \
@@ -30,6 +31,15 @@ def dl(url: str, file_name: str):
             f.write(req.content)
     except ValueError:
         print("Cannot access " + url)
+
+
+def get_source(lib: str, uri: str) -> str:
+    req = requests.get("https://raw.githubusercontent.com/SAP/openui5/master/src/" + lib + "/src/" + uri.replace('.', '/') + ".js")
+    try:
+        return req.text
+    except ValueError:
+        print("Cannot access source code for " + lib + "//" + uri)
+        return ''
 
 
 class Parameter:
@@ -77,6 +87,7 @@ class Parameter:
 
 
 class Method:
+    lib: Optional[str]
     parent_uri: str
     name: str
     static: bool
@@ -87,7 +98,8 @@ class Method:
     return_type: Optional[TsType]
     needs_function_word: bool
 
-    def __init__(self, parent_uri: str, json_method: json):
+    def __init__(self, parent_uri: str, lib: str, json_method: json):
+        self.lib = lib
         self.parent_uri = parent_uri
         self.name = json_method.get('name', '').split('/')[-1]
         self.static = False
@@ -120,11 +132,13 @@ class Method:
         if len(self.name) == 0:
             return
         if self.description is not None:
-            comment = Comment(self.description, self.parent_uri + "/methods/" + self.maybe_static_name())
+            comment = Comment(self.description, self.parent_uri, "/methods/" + self.maybe_static_name())
             for param in self.parameters:
                 comment.add_parameter(param.name, param.description)
                 for sub in param.sub_parameters:
                     comment.add_parameter(param.name + '.' + sub.name, sub.description)
+            comment.lib = self.lib
+            comment.source_code_line = self.get_source_line()
             comment.write(f, indent)
         f.write(indent)
         if self.visibility is not None:
@@ -139,6 +153,29 @@ class Method:
         if self.return_type is not None:
             f.write(": " + self.return_type.written())
         f.write(";\n")
+
+    def get_source_line(self) -> Optional[int]:
+        if not ENABLE_SOURCE_LINKS_WITH_LINE_NUMBERS:
+            return None
+        if self.lib is None:
+            return None
+        soure_cache_key = self.lib + "//" + self.parent_uri
+        lines = None
+        if soure_cache_key in SOURCE_CACHE:
+            lines = SOURCE_CACHE[soure_cache_key]
+        else:
+            source = get_source(self.lib, self.parent_uri)
+            if len(source) >= 0 and '404' not in source:
+                lines = [l.strip() for l in source.split('\n')]
+            SOURCE_CACHE[soure_cache_key] = lines
+        if lines is None:
+            return None
+        # we are searching for e.g. '.create = function('
+        target_search = '.' + self.name + ' = function('
+        for i, line in zip(range(len(lines)), lines):
+            if target_search in line:
+                return i + 1
+        return None
 
     def clean_up(self):
         self.shift_optional_parameters()
@@ -245,10 +282,10 @@ class Class(CodeBlock):
             self.base_class = TsType.parse_single(json_symbol.get('extends'))
         self.interfaces = json_symbol.get('implements', [])
         for json_method in json_symbol.get('methods', []):
-            m = Method(self.full_uri(), json_method)
+            m = Method(self.full_uri(), self.lib, json_method)
             self.methods[m.name] = m
         if 'constructor' in json_symbol:
-            self.constructor = Method(self.full_uri(), json_symbol['constructor'])
+            self.constructor = Method(self.full_uri(), self.lib, json_symbol['constructor'])
             self.constructor.name = 'constructor'
         if 'hasSample' in json_symbol and json_symbol['hasSample']:
             self.has_sample = True
@@ -412,7 +449,7 @@ class Namespace:
             return self.resolve_single_method(json_method)
 
     def resolve_single_method(self, json_method) -> Method:
-        m = Method(self.full_uri(), json_method)
+        m = Method(self.full_uri(), None, json_method)
         name = m.name
         if name not in self.methods:
             m.needs_function_word = True
