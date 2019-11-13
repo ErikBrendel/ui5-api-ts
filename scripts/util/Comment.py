@@ -11,7 +11,8 @@ def prettify(self, encoding=None, formatter="minimal", indent_width=4):
 BeautifulSoup.prettify = prettify
 
 
-CROSS_LINK = re.compile(r"<a[^>]* href=\"#/api/([a-zA-Z0-9.]+)\"[^>]*>\1</a>")
+CROSS_LINK = re.compile(r"<a[^>]* href=\"#/api/([a-zA-Z0-9.]+)\"[^>]*>([^<>]+)</a>")
+CROSS_LINK_M = re.compile(r"<a[^>]* href=\"#/api/([a-zA-Z0-9.]+)/methods/([a-zA-Z0-9.]+)\"[^>]*>([^<>]+)</a>")
 
 
 class Comment:
@@ -47,7 +48,9 @@ class Comment:
         f.write(indent + " */\n")
 
     def clean_text(self) -> str:
-        text = CROSS_LINK.sub(r"{@link \1}", self.text)
+        text = self.text
+        text = CROSS_LINK.sub(r"[\2]{@link \1}", text)
+        text = CROSS_LINK_M.sub(r"[\3]{@link \1.\2}", text)
         if len(self.parameters) > 0:
             text += "\n"
         for (name, description) in self.parameters:
