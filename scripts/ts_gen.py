@@ -241,7 +241,11 @@ class Class(CodeBlock):
 
     def ns_word(self):
         if self.is_interface:
-            return "interface"
+            if any([m.static for m in self.methods.values()]):
+                # since typescript doesn't want static methods in interfaces, we just make them classes
+                return "class /* interface */"
+            else:
+                return "interface"
         else:
             return "class"
 
