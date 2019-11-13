@@ -8,6 +8,11 @@ from scripts.util.TsTyping import *
 from scripts.util.Comment import *
 from scripts.util.UtilFunctions import *
 
+import requests
+import requests_cache
+requests_cache.install_cache()
+# todo: load source files and find out the lines of functions to add source code links to them
+
 
 INDENT = '    '
 FILE_HEADER = "/**\n" \
@@ -15,6 +20,16 @@ FILE_HEADER = "/**\n" \
               " * It can be re-generated from the latest UI5 api docs\n" \
               " */\n\n\n" \
               "declare "
+
+
+def dl(url: str, file_name: str):
+    req = requests.get(url)
+
+    try:
+        with open('../ts/' + file_name, 'wb') as f:
+            f.write(req.content)
+    except ValueError:
+        print("Cannot access " + url)
 
 
 class Parameter:
@@ -288,20 +303,20 @@ class Enum(CodeBlock):
 
 
 class Typedef(CodeBlock):
-    type: str
+    type: TsType
 
     def __init__(self, name: str, parent: 'Namespace'):
         CodeBlock.__init__(self, name, parent)
-        self.type = 'any'
+        self.type = TsType.parse_single('any')
 
     def write(self, f: 'TextIO', indent: str):
         self.write_comment(f, indent)
-        f.write(indent + 'type ' + pp_name(self.name) + ' = ' + self.type + '\n')
+        f.write(indent + 'type ' + pp_name(self.name) + ' = ' + self.type.written() + '\n')
 
     def load(self, json_typedef):
         meta = json_typedef.get('ui5-metadata', {})
         if 'basetype' in meta:
-            self.type = meta['basetype']
+            self.type = TsType.parse_single(meta['basetype'])
         if 'pattern' in meta:
             self.description = 'Needs to follow this regex: ' + meta['pattern']
 
@@ -479,6 +494,9 @@ if __name__ == "__main__":
     print("Done!")
     print("Now writing...", end="", flush=True)
     decl.save_to("../ts/")
+    print("Done!")
+    print("Getting additional types...", end="", flush=True)
+    dl("https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/master/types/jquery/v2/index.d.ts", "external.jQuery.d.ts")
     print("Done!")
     print("\nAll done!")
     time.sleep(2)

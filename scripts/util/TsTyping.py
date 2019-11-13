@@ -64,9 +64,9 @@ class TsType:
         if name == 'function':
             name = 'Function'
         if name == 'int':
-            name = 'number'
+            name = 'number/*int*/'
         if name == 'int[]':
-            name = 'number[]'
+            name = 'number[]/*int[]*/'
         if name == 'float':
             name = 'number'
         if name == 'float[]':
