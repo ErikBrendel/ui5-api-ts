@@ -109,7 +109,10 @@ class Method:
         if len(self.name) == 0:
             return
         if self.description is not None:
-            Comment(self.description, self.parent_uri + "/methods/" + self.maybe_static_name()).write(f, indent)
+            comment = Comment(self.description, self.parent_uri + "/methods/" + self.maybe_static_name())
+            for param in self.parameters:
+                comment.add_parameter(param.name, param.description)
+            comment.write(f, indent)
         f.write(indent)
         if self.visibility is not None:
             f.write(visibility_parse(self.visibility) + " ")

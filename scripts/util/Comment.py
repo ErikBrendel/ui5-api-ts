@@ -16,6 +16,7 @@ CROSS_LINK = re.compile(r"<a[^>]* href=\"#/api/([a-zA-Z0-9.]+)\"[^>]*>\1</a>")
 
 class Comment:
     text: str
+    parameters: List[Tuple[str, str]]  # (name, description)
     uri: str
     has_sample: bool
     ux_guide: Optional[Tuple[str, str]]  # (url, displayString)
@@ -23,6 +24,7 @@ class Comment:
 
     def __init__(self, text: str, uri: str = None):
         self.text = text
+        self.parameters = []
         self.uri = uri
         self.has_sample = False
         self.ux_guide = None
@@ -45,7 +47,12 @@ class Comment:
         f.write(indent + " */\n")
 
     def clean_text(self) -> str:
-        return CROSS_LINK.sub(r"{@link \1}", self.text)
+        text = CROSS_LINK.sub(r"{@link \1}", self.text)
+        if len(self.parameters) > 0:
+            text += "\n"
+        for (name, description) in self.parameters:
+            text += "@param " + name + "  " + description + "\n"
+        return text
 
     def pretty_print(self, text: str) -> str:
         return text  # disabled, since it really impacts the performance and is not really needed
@@ -64,3 +71,7 @@ class Comment:
             tag.replace_with('{' + 'unformatted_tag_list[{0}]'.format(i) + '}')
 
         return soup.prettify(formatter="minimal").format(unformatted_tag_list=unformatted_tag_list)
+
+    def add_parameter(self, name: str, description: str):
+        if description is not None and len(description) > 0:
+            self.parameters.append((name, description))
