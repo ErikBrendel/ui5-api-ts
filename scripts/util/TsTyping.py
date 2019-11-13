@@ -33,8 +33,16 @@ class TsType:
         pass
 
     @abstractmethod
+    def trim_by(self, base_uri: str):
+        pass
+
+    @abstractmethod
     def written(self) -> str:
         pass
+
+    @staticmethod
+    def parse_single(type: str):
+        return TypeLiteral(TsType.parse_type_name({"name": type}))
 
     @staticmethod
     def parse(json_types: List) -> 'TsType':
@@ -71,12 +79,16 @@ class TsType:
             name = 'number'
         if name == 'real[]':
             name = 'number[]'
+        if name == 'date':
+            name = 'Date'
         if name.lower() == 'array':
             name = 'any[]'
         if name.lower() == 'map':
             name = 'Map<any, any>'
         if name.lower() == 'promise':
             name = 'Promise<any>'
+        if name.lower() == 'iterator':
+            name = 'Iterator<any>'
         if name == '*':
             name = 'any'
         if name.startswith("Array.<"):  # this is really bad!
@@ -115,6 +127,18 @@ class TypeLiteral(TsType):
     def combined_with_combined(self, other: 'CombinedType') -> 'CombinedType':
         return other.combine_with_literal(self)
 
+    def trim_by(self, base_uri: str):
+        base_parts = base_uri.split('.')
+        self_parts = self.name.split('.')
+        if self_parts[0] != base_parts[0] and len(self_parts) > 1:
+            self.name = 'globalThis.' + self.name
+            return
+        # actually shortining the type intoduces more ambiguity errors
+        # while len(base_parts) > 0 and len(self_parts) > 1 and base_parts[0] == self_parts[0]:
+        #     base_parts.pop(0)
+        #     self_parts.pop(0)
+        # self.name = '.'.join(self_parts)
+
     def written(self) -> str:
         return self.name
 
@@ -142,6 +166,10 @@ class CombinedType(TsType):
 
     def combined_with_combined(self, other: 'CombinedType') -> 'CombinedType':
         return CombinedType([*other.options, *self.options])
+
+    def trim_by(self, base_uri: str):
+        for option in self.options:
+            option.trim_by(base_uri)
 
     def written(self) -> str:
         return '(' + " | ".join([o.written() for o in self.options]) + ")"

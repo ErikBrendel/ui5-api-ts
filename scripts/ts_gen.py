@@ -47,6 +47,10 @@ class Parameter:
         self.name = self.name + 'Or' + capitalize_first(other.name)
         self.type = self.type.combine_with(other.type)
 
+    def trim_by(self, parent_uri: str):
+        if self.type is not None:
+            self.type.trim_by(parent_uri)
+
 
 class Method:
     parent_uri: str
@@ -107,6 +111,10 @@ class Method:
 
     def clean_up(self):
         self.shift_optional_parameters()
+        for param in self.parameters:
+            param.trim_by(self.parent_uri)
+        if self.return_type is not None:
+            self.return_type.trim_by(self.parent_uri)
 
     def shift_optional_parameters(self):
         """
@@ -182,7 +190,7 @@ class CodeBlock:
 
 class Class(CodeBlock):
     name: str
-    base_class: str
+    base_class: Optional[TsType]
     interfaces: []
     methods: Dict[str, Method]
     constructor: Optional[Method]
@@ -200,7 +208,9 @@ class Class(CodeBlock):
 
     def load(self, json_symbol: json):
         self.description = json_symbol.get('description')
-        self.base_class = json_symbol.get('extends')
+        self.base_class = None
+        if 'extends' in json_symbol:
+            self.base_class = TsType.parse_single(json_symbol.get('extends'))
         self.interfaces = json_symbol.get('implements', [])
         for json_method in json_symbol.get('methods', []):
             m = Method(self.full_uri(), json_method)
@@ -219,7 +229,7 @@ class Class(CodeBlock):
         self.write_comment(f, indent)
         f.write(indent + self.ns_word() + " " + pp_name(self.name) + " ")
         if self.base_class is not None:
-            f.write("extends " + self.base_class + " ")
+            f.write("extends " + self.base_class.written() + " ")
         if len(self.interfaces) > 0:
             f.write("implements " + ", ".join(self.interfaces) + " ")
         f.write("{\n")
@@ -236,6 +246,8 @@ class Class(CodeBlock):
             return "class"
 
     def clean_up(self):
+        if self.base_class is not None:
+            self.base_class.trim_by(self.full_uri())
         if self.constructor is not None:
             self.constructor.clean_up()
         for name, method in self.methods.items():
