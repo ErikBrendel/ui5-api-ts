@@ -128,6 +128,8 @@ class TypeLiteral(TsType):
         return other.combine_with_literal(self)
 
     def trim_by(self, base_uri: str):
+        if self.name.startswith('{'):
+            return
         base_parts = base_uri.split('.')
         self_parts = self.name.split('.')
         if self_parts[0] != base_parts[0] and len(self_parts) > 1:

@@ -39,6 +39,7 @@ class Parameter:
     optional: bool
     depth: int
     type: Optional[TsType]
+    sub_parameters: List['Parameter']
 
     def __init__(self, json_parameter: json):
         self.name = json_parameter['name']
@@ -49,6 +50,7 @@ class Parameter:
         self.type = None
         if 'types' in json_parameter:
             self.type = TsType.parse(json_parameter['types'])
+        self.sub_parameters = []
 
     def written(self) -> str:
         name = pp_name(self.name)
@@ -62,9 +64,16 @@ class Parameter:
         self.name = self.name + 'Or' + capitalize_first(other.name)
         self.type = self.type.combine_with(other.type)
 
+    def clean_up(self):
+        if self.type is not None and self.type.written() == 'object' and len(self.sub_parameters) > 0:
+            self.type = TsType.parse_single('{' + ', '.join([s.written() for s in self.sub_parameters]) + '}')
+
     def trim_by(self, parent_uri: str):
         if self.type is not None:
             self.type.trim_by(parent_uri)
+
+    def add_sub_parameter(self, p: 'Parameter'):
+        self.sub_parameters.append(p)
 
 
 class Method:
@@ -95,6 +104,8 @@ class Method:
             p = Parameter(json_parameter)
             if p.depth == 0:
                 self.parameters.append(p)
+            elif p.depth == 1:
+                self.parameters[-1].add_sub_parameter(p)
         if 'returnValue' in json_method and 'types' in json_method['returnValue']:
             self.return_type = TsType.parse(json_method['returnValue']['types'])
         self.needs_function_word = False
@@ -112,6 +123,8 @@ class Method:
             comment = Comment(self.description, self.parent_uri + "/methods/" + self.maybe_static_name())
             for param in self.parameters:
                 comment.add_parameter(param.name, param.description)
+                for sub in param.sub_parameters:
+                    comment.add_parameter(param.name + '.' + sub.name, sub.description)
             comment.write(f, indent)
         f.write(indent)
         if self.visibility is not None:
@@ -130,6 +143,7 @@ class Method:
     def clean_up(self):
         self.shift_optional_parameters()
         for param in self.parameters:
+            param.clean_up()
             param.trim_by(self.parent_uri)
         if self.return_type is not None:
             self.return_type.trim_by(self.parent_uri)
