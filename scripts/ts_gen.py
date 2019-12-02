@@ -170,8 +170,8 @@ class Method:
             SOURCE_CACHE[soure_cache_key] = lines
         if lines is None:
             return None
-        # we are searching for e.g. '.create = function('
-        target_search = '.' + self.name + ' = function('
+        # we are searching for e.g. '.create = function'
+        target_search = '.' + self.name + ' = function'
         for i, line in zip(range(len(lines)), lines):
             if target_search in line:
                 return i + 1
