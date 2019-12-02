@@ -10,7 +10,7 @@ from scripts.util.UtilFunctions import *
 
 import requests
 import requests_cache
-requests_cache.install_cache()
+requests_cache.install_cache(allowable_codes=(200, 404))
 
 SOURCE_CACHE = {}
 
@@ -172,6 +172,8 @@ class Method:
             return None
         # we are searching for e.g. '.create = function'
         target_search = '.' + self.name + ' = function'
+        if self.name == 'constructor':
+            target_search = 'constructor : function'
         for i, line in zip(range(len(lines)), lines):
             if target_search in line:
                 return i + 1
