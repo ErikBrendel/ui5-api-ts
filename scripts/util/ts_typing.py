@@ -1,13 +1,18 @@
 from abc import abstractmethod
 from typing import *
 import re
-from scripts.util.UtilFunctions import *
+from scripts.util.util_functions import *
 
 
 OBJ_MAP = re.compile(r"Object\.<(.+),(.+)>")
 
 
 class TsType:
+
+    # Awesome un-symmetric double-dispatch:
+    # The un-symmetry is maintained via "combine" vs "combined"
+    # (So that the order of the result stays predictable)
+
     @abstractmethod
     def combine_with(self, other: 'TsType') -> 'CombinedType':
         pass
