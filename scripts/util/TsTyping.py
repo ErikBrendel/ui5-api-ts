@@ -40,6 +40,14 @@ class TsType:
     def written(self) -> str:
         pass
 
+    @abstractmethod
+    def contains_plain_object(self):
+        pass
+
+    @abstractmethod
+    def replace_plain_object_with(self, fancy_object: 'TsType') -> 'TsType':
+        pass
+
     @staticmethod
     def parse_single(type: str):
         return TypeLiteral(TsType.parse_type_name({"name": type}))
@@ -144,6 +152,12 @@ class TypeLiteral(TsType):
     def written(self) -> str:
         return self.name
 
+    def contains_plain_object(self):
+        return self.written() == 'object'
+
+    def replace_plain_object_with(self, fancy_object: 'TsType') -> 'TsType':
+        return fancy_object
+
 
 class CombinedType(TsType):
     options: List[TsType]
@@ -175,3 +189,13 @@ class CombinedType(TsType):
 
     def written(self) -> str:
         return '(' + " | ".join([o.written() for o in self.options]) + ")"
+
+    def contains_plain_object(self):
+        return any([option.written() == 'object' for option in self.options])
+
+    def replace_plain_object_with(self, fancy_object: 'TsType') -> 'TsType':
+        for i, option in enumerate(self.options):
+            if option.contains_plain_object():
+                self.options[i] = option.replace_plain_object_with(fancy_object)
+                return self
+        raise Exception("I do not contain a plain Object!")

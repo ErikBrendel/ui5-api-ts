@@ -75,8 +75,9 @@ class Parameter:
         self.type = self.type.combine_with(other.type)
 
     def clean_up(self):
-        if self.type is not None and self.type.written() == 'object' and len(self.sub_parameters) > 0:
-            self.type = TsType.parse_single('{' + ', '.join([s.written() for s in self.sub_parameters]) + '}')
+        if self.type is not None and self.type.contains_plain_object() and len(self.sub_parameters) > 0:
+            fancy_object = TsType.parse_single('{' + ', '.join([s.written() for s in self.sub_parameters]) + '}')
+            self.type = self.type.replace_plain_object_with(fancy_object)
 
     def trim_by(self, parent_uri: str):
         if self.type is not None:
