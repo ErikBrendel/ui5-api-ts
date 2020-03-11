@@ -322,7 +322,7 @@ class Class(CodeBlock):
 
 
 class Enum(CodeBlock):
-    options: List[str]
+    options: List[Tuple[str, str]]  # (name, comment)
 
     def __init__(self, name, parent: 'Namespace'):
         CodeBlock.__init__(self, name, parent)
@@ -335,7 +335,7 @@ class Enum(CodeBlock):
         if 'properties' in json_enum:
             options = json_enum['properties']
         long_name_length = len(json_enum['name']) + 1
-        self.options = [o['name'][long_name_length:] for o in options]
+        self.options = [(o['name'][long_name_length:], o.get('description')) for o in options]
 
     def clean_up(self):
         pass
@@ -343,8 +343,10 @@ class Enum(CodeBlock):
     def write(self, f: 'TextIO', indent: str):
         self.write_comment(f, indent)
         f.write(indent + 'enum ' + pp_name(self.name) + ' {\n')
-        for option in self.options:
-            f.write(indent + INDENT + option + ",\n")
+        for (name, description) in self.options:
+            if description is not None:
+                Comment(description).write(f, indent + INDENT)
+            f.write(indent + INDENT + name + ",\n")
         f.write(indent + '}\n')
 
 
