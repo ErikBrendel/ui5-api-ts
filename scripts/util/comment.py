@@ -62,6 +62,7 @@ class Comment:
             text += "\n"
         for (name, description) in self.parameters:
             text += "@param " + name + "  " + description + "\n"
+        text = text.replace('<pre>', '\n<pre>')
         return text
 
     def pretty_print(self, text: str) -> str:
