@@ -145,7 +145,9 @@ class TypeLiteral(TsType):
             return
         base_parts = base_uri.split('.')
         self_parts = self.name.split('.')
-        if self_parts[0] != base_parts[0] and len(self_parts) > 1:
+        global_constant_clash = len(self_parts) == 1 and base_parts[-1] == self.name  # e.g. self.name=='Element' and base_uri=='sap.core.Element'
+        different_package = self_parts[0] != base_parts[0] and len(self_parts) > 1
+        if global_constant_clash or different_package:
             self.name = 'globalThis.' + self.name
             return
         # actually shortining the type intoduces more ambiguity errors
