@@ -4,7 +4,7 @@ forbidden_chars = [' ', ':', '/', '-', '<', '>', '{', '}', '[', ']']
 
 def visibility_parse(raw_visibility: str) -> str:
     if raw_visibility == 'restricted':
-        return 'private'
+        return 'protected/*restricted*/'
     return raw_visibility
 
 

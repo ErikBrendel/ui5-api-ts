@@ -81,8 +81,7 @@ class Method:
     name: str
     static: bool
     visibility: Optional[str]
-    description: str
-    visibility: str
+    description: Optional[str]
     parameters: List[Parameter]
     return_type: Optional[TsType]
     needs_function_word: bool
@@ -98,7 +97,6 @@ class Method:
             self.static = True
         self.visibility = json_method.get('visibility')
         self.description = json_method.get('description')
-        self.visibility = json_method.get('visibility')
         self.parameters = []
         self.return_type = None
         for json_parameter in json_method.get('parameters', []):
