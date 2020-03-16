@@ -1,9 +1,9 @@
 import json
 from typing import *
 
-from scripts.util.ts_typing import *
-from scripts.util.comment import *
-from scripts.util.util_functions import *
+from .ts_typing import *
+from .comment import *
+from .util_functions import *
 
 import requests
 import requests_cache

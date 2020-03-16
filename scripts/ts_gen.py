@@ -3,7 +3,7 @@ import json
 import os
 import time
 
-from scripts.util.ts_structures import Declaration
+from .util.ts_structures import Declaration
 
 import requests
 import requests_cache

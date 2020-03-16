@@ -62,7 +62,7 @@ class Comment:
             text += "\n"
         for (name, description) in self.parameters:
             text += "@param " + name + "  " + description + "\n"
-        text = text.replace('<pre>', '\n<pre>')
+        text = text.replace('<pre>', '\n<pre>')  # to fix WebStorm bug of not properly displyeing these
         return text
 
     def pretty_print(self, text: str) -> str:

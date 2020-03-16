@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import *
 import re
-from scripts.util.util_functions import *
+from .util_functions import *
 
 
 OBJ_MAP = re.compile(r"Object\.<(.+),(.+)>")
