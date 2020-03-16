@@ -90,11 +90,7 @@ class Method:
         self.lib = lib
         self.parent_uri = parent_uri
         self.name = json_method.get('name', '').split('/')[-1]
-        self.static = False
-        if self.name.startswith(self.parent_uri):
-            offset = len(self.parent_uri) + 1
-            self.name = self.name[offset:]
-            self.static = True
+        self.static = self.should_be_static()
         self.visibility = json_method.get('visibility')
         self.description = json_method.get('description')
         self.parameters = []
@@ -108,6 +104,17 @@ class Method:
         if 'returnValue' in json_method and 'types' in json_method['returnValue']:
             self.return_type = TsType.parse(json_method['returnValue']['types'])
         self.needs_function_word = False
+
+    def should_be_static(self) -> bool:
+        static_begin = self.parent_uri
+        if not self.name.startswith(static_begin):
+            static_begin = self.parent_uri.split('.')[-1]
+
+        if self.name.startswith(static_begin):
+            offset = len(static_begin) + 1
+            self.name = self.name[offset:]
+            return True
+        return False
 
     def maybe_static_name(self):
         if self.static:

@@ -14,8 +14,8 @@ def dl(url: str, file_name: str):
     req = requests.get(url)
 
     try:
-        with open('../ts/' + file_name, 'wb') as f:
-            f.write(req.content)
+        with open('../ts/' + file_name, 'w') as f:
+            f.write(req.text.replace("declare var jQuery:", "declare var jQueryStatic:"))
     except ValueError:
         print("Cannot access " + url)
 

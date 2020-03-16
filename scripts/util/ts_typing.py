@@ -74,10 +74,14 @@ class TsType:
         else:
             raise Exception("cannot get type name!")
         name = pp_type(name)
+        if name == 'jQuery':
+            name = 'JQuery'
         if name == 'function':
             name = 'Function'
         if name == 'int' or name == 'sap.ui.core.int':
             name = 'number/*int*/'
+        if name == 'Infinity':
+            name = 'number/*infinity*/'
         if name == 'int[]':
             name = 'number[]/*int[]*/'
         if name == 'float':
