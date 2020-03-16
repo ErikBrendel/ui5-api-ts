@@ -76,7 +76,7 @@ class TsType:
         name = pp_type(name)
         if name == 'function':
             name = 'Function'
-        if name == 'int':
+        if name == 'int' or name == 'sap.ui.core.int':
             name = 'number/*int*/'
         if name == 'int[]':
             name = 'number[]/*int[]*/'
