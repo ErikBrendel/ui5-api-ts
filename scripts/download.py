@@ -27,7 +27,7 @@ def dl(url: str, file_name: str) -> dict:
         result_json = req.json()
         with open('../api/' + file_name + '.json', 'wb') as f:
             f.write(req.content)
-        print("Sccuess! " + url)
+        print("Success! " + url)
         return result_json
     except ValueError:
         print("Cannot access " + url)
