@@ -10,6 +10,8 @@ This projects queries the official UI5 API and creates TypeScript declarations b
  - execute `download.py` (double-click the file)
  - execute `ts_gen.py`
  - Now you have up-to-date ui5 type declarations!
+
+_(if you have problems with executing the python files, it might be because the imports cannot be found (python imports are weird). Try opening the file in a text editor, find the line that says `from scripts.<something> import <something>`, remove the `scripts.` from it, and try again.)_
  
 ### Embedding it into WebStorm
  - open up `Settings > Languages & Frameworks > JavaScript > Libraries`
